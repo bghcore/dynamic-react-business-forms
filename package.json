@@ -1,72 +1,16 @@
 {
-  "name": "@brhanso/dynamic-business-forms",
-  "version": "1.0.0",
-  "description": "A dynamic React form library for business applications",
-  "homepage": "https://github.com/brhanso_microsoft/dynamic-business-forms#readme",
-  "bugs": {
-    "url": "https://github.com/brhanso_microsoft/dynamic-business-forms/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/brhanso_microsoft/dynamic-business-forms.git"
-  },
-  "license": "ISC",
-  "author": "Brad Hanson <brhanso@microsoft.com>",
-  "main": "dist/index.cjs.js",
-  "module": "dist/index.esm.js",
-  "types": "dist/index.d.ts",
-  "typesVersions": {
-    "*": {
-      "*": [
-        "dist/index.d.ts"
-      ]
-    }
-  },
-  "files": [
-    "dist"
-  ],
+  "name": "dynamic-react-business-forms",
+  "private": true,
+  "workspaces": ["packages/*"],
   "scripts": {
-    "build": "rollup -c",
-    "prepublishOnly": "npm run build",
-    "test": "jest",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts,.tsx"
-  },
-  "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0",
-    "@fluentui/react": "^8.0.0"
-  },
-  "dependencies": {
-    "react-hook-form": "^7.63.0"
+    "build": "npm run build --workspaces",
+    "build:core": "npm run build --workspace=packages/core",
+    "build:fluent": "npm run build --workspace=packages/fluent",
+    "clean": "rimraf packages/*/dist"
   },
   "devDependencies": {
-    "@fluentui/react": "^8.118.0",
-    "@testing-library/react": "^16.0.0",
-    "@types/jest": "^29.5.12",
-    "@types/react": "^18.3.11",
-    "@types/react-dom": "^18.3.0",
-    "eslint": "^8.57.0",
-    "eslint-plugin-react": "^7.37.1",
-    "eslint-plugin-react-hooks": "^4.6.2",
-    "jest": "^29.7.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "rollup": "^4.24.0",
-    "rollup-plugin-dts": "^6.1.1",
-    "rollup-plugin-typescript2": "^0.36.0",
-    "ts-jest": "^29.2.5",
-    "typescript": "^5.6.3"
-  },
-  "keywords": [
-    "react",
-    "typescript",
-    "forms",
-    "dynamic-forms",
-    "business",
-    "fluentui"
-  ],
-  "publishConfig": {
-    "access": "public"
+    "rimraf": "^5.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0"
   }
 }

@@ -1,0 +1,52 @@
+export const FIELD_PARENT_PREFIX = "Parent.";
+
+export const HookInlineFormConstants = {
+  defaultExpandCutoffCount: 12,
+  loadingShimmerCount: 12,
+  loadingFieldShimmerHeight: 32,
+  na: "n/a",
+  dynamicFragment: "DynamicFragment",
+  newStatusReasonDescription: "NewStatusReasonDescription",
+  statusReasonDescription: "StatusReasonDescription",
+  dropdown: "Dropdown",
+  multiselect: "Multiselect",
+  statusDropdown: "StatusDropdown",
+  panelActionKeys: {
+    cancel: "Cancel",
+    close: "Close",
+    create: "Create",
+    update: "Update",
+  },
+  unassigned: "Unassigned",
+  defaultPeopleSearch: "a",
+  urlRegex: /(http(s?)):\/\//i,
+  errorColor: "#a4262c",
+  "150kb": 150,
+  "32kb": 32,
+};
+
+/** Component type constants (replaces ComponentTypes enum from @cxpui) */
+export const ComponentTypes = {
+  Textbox: "Textbox",
+  Dropdown: "Dropdown",
+  Toggle: "Toggle",
+  Number: "Number",
+  MultiSelect: "Multiselect",
+  DateControl: "DateControl",
+  Slider: "Slider",
+  Fragment: "DynamicFragment",
+  SimpleDropdown: "SimpleDropdown",
+  MultiSelectSearch: "MultiSelectSearch",
+  PopOutEditor: "PopOutEditor",
+  RichText: "RichText",
+  Textarea: "Textarea",
+  DocumentLinks: "DocumentLinks",
+  StatusDropdown: "StatusDropdown",
+  ReadOnly: "ReadOnly",
+  ReadOnlyArray: "ReadOnlyArray",
+  ReadOnlyDateTime: "ReadOnlyDateTime",
+  ReadOnlyCumulativeNumber: "ReadOnlyCumulativeNumber",
+  ReadOnlyRichText: "ReadOnlyRichText",
+  ReadOnlyWithButton: "ReadOnlyWithButton",
+  ChoiceSet: "ChoiceSet",
+} as const;
