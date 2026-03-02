@@ -19,7 +19,7 @@ A **configuration-driven React form library** with a built-in business rules eng
 The library is split into two packages:
 
 - **`@bghcore/dynamic-forms-core`** -- Framework-agnostic business rules engine, form orchestration, providers, and TypeScript interfaces. No UI library dependency.
-- **`@bghcore/dynamic-forms-fluent`** -- Fluent UI v8 field component implementations. Depends on core.
+- **`@bghcore/dynamic-forms-fluent`** -- Fluent UI v9 field component implementations. Depends on core.
 
 ---
 

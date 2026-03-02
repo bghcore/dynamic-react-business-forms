@@ -1,7 +1,26 @@
 {
   "name": "@bghcore/dynamic-forms-core",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Core business rules engine and form orchestration for dynamic React forms",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bghcore/dynamic-react-business-forms.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/bghcore/dynamic-react-business-forms#readme",
+  "bugs": {
+    "url": "https://github.com/bghcore/dynamic-react-business-forms/issues"
+  },
+  "keywords": [
+    "react",
+    "forms",
+    "business-rules",
+    "dynamic-forms",
+    "react-hook-form",
+    "form-builder",
+    "configuration-driven",
+    "declarative-forms"
+  ],
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -1,0 +1,89 @@
+# Dynamic React Business Forms
+
+> A React library for rendering complex, configuration-driven forms with a built-in business rules engine. Define forms as JSON configurations and the library handles rendering, validation, auto-save, and field interactions automatically. Published as `@bghcore/dynamic-forms-core` (framework-agnostic engine) and `@bghcore/dynamic-forms-fluent` (Fluent UI v9 field components).
+
+The library centers on three key concepts: a **declarative business rules engine** that evaluates field dependencies, visibility, required state, and computed values from JSON config; a **component injection system** where UI field implementations are registered by string key and rendered via `React.cloneElement`; and **pluggable registries** for custom validation and value functions referenced by name in field configs.
+
+## Docs
+
+- [README.md](https://github.com/bghcore/dynamic-react-business-forms/blob/main/README.md): Full usage guide with quick start, field types, architecture diagram, and examples
+- [CLAUDE.md](https://github.com/bghcore/dynamic-react-business-forms/blob/main/CLAUDE.md): Detailed architecture, rendering pipeline, key directories, and coding conventions
+- [CHANGELOG.md](https://github.com/bghcore/dynamic-react-business-forms/blob/main/CHANGELOG.md): Release history
+
+## API
+
+### @bghcore/dynamic-forms-core
+
+- **Providers**: `BusinessRulesProvider`, `InjectedHookFieldProvider` -- React context providers that must wrap the form tree
+- **Components**: `HookInlineForm` (entry point), `HookInlineFormFields`, `HookRenderField`, `HookFieldWrapper`, `HookConfirmInputsModal`
+- **Business Rules**: `ProcessAllBusinessRules`, `ProcessFieldBusinessRule`, `CombineBusinessRules`, `GetDefaultBusinessRules`
+- **Form Helpers**: `CombineSchemaConfig`, `GetFieldsToRender`, `CheckFieldValidationRules`, `ExecuteValueFunction`
+- **Registries**: `registerValidations()`, `registerValueFunctions()` -- plug in custom functions by name
+- **Types**: `IFieldConfig`, `IBusinessRule`, `IHookFieldSharedProps<T>`, `IBusinessRulesState`, `IDropdownOption`, `ComponentTypes`
+
+### @bghcore/dynamic-forms-fluent
+
+- **Registry**: `createFluentFieldRegistry()` -- returns a complete field map for `InjectedHookFieldProvider`
+- **Editable Fields**: HookTextbox, HookDropdown, HookToggle, HookNumber, HookMultiSelect, HookDateControl, HookSlider, HookSimpleDropdown, HookMultiSelectSearch, HookPopOutEditor, HookDocumentLinks, HookStatusDropdown, HookFragment
+- **Read-Only Fields**: HookReadOnly, HookReadOnlyArray, HookReadOnlyDateTime, HookReadOnlyCumulativeNumber, HookReadOnlyRichText, HookReadOnlyWithButton
+- **Helpers**: `FieldClassName`, `GetFieldDataTestId`, `formatDateTime`
+
+## Examples
+
+### Minimal Setup
+
+```tsx
+import { BusinessRulesProvider, InjectedHookFieldProvider, UseInjectedHookFieldContext, HookInlineForm } from "@bghcore/dynamic-forms-core";
+import { createFluentFieldRegistry } from "@bghcore/dynamic-forms-fluent";
+
+function FieldRegistrar({ children }) {
+  const { setInjectedFields } = UseInjectedHookFieldContext();
+  useEffect(() => setInjectedFields(createFluentFieldRegistry()), []);
+  return <>{children}</>;
+}
+
+<BusinessRulesProvider>
+  <InjectedHookFieldProvider>
+    <FieldRegistrar>
+      <HookInlineForm
+        configName="myForm"
+        programName="myApp"
+        fieldConfigs={{ name: { component: "Textbox", label: "Name", required: true } }}
+        defaultValues={{ name: "" }}
+        saveData={async (data) => data}
+      />
+    </FieldRegistrar>
+  </InjectedHookFieldProvider>
+</BusinessRulesProvider>
+```
+
+### Business Rules (Declarative Dependencies)
+
+```tsx
+const fieldConfigs = {
+  type: {
+    component: "Dropdown",
+    label: "Type",
+    dropdownOptions: [{ key: "bug", text: "Bug" }, { key: "feature", text: "Feature" }],
+    dependencies: {
+      bug: { severity: { required: true, hidden: false } },
+      feature: { severity: { hidden: true } },
+    },
+  },
+  severity: { component: "Dropdown", label: "Severity", hidden: true },
+};
+```
+
+### Custom Validation and Value Functions
+
+```tsx
+import { registerValidations, registerValueFunctions } from "@bghcore/dynamic-forms-core";
+
+registerValidations({
+  maxLength100: (value) => typeof value === "string" && value.length > 100 ? "Max 100 chars" : undefined,
+});
+
+registerValueFunctions({
+  setTimestamp: () => new Date().toISOString(),
+});
+```

@@ -6,7 +6,7 @@ A React library for rendering complex, configuration-driven forms with a built-i
 
 Published as two npm packages:
 - `@bghcore/dynamic-forms-core` -- Framework-agnostic business rules engine and form orchestration
-- `@bghcore/dynamic-forms-fluent` -- Fluent UI v8 field component implementations
+- `@bghcore/dynamic-forms-fluent` -- Fluent UI v9 field component implementations
 
 ## Architecture
 
@@ -148,7 +148,7 @@ npm run clean            # Remove all dist/ directories
 
 - **React 18/19** with hooks
 - **react-hook-form v7** for form state management
-- **Fluent UI v8** (`@fluentui/react`) for UI components (fluent package only)
+- **Fluent UI v9** (`@fluentui/react-components`) for UI components (fluent package only)
 - **TypeScript** with strict mode
 - **tsup** for bundling (CJS + ESM + .d.ts)
 - **npm workspaces** for monorepo management

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-03-02
+
+First stable release. Both packages published to npm.
+
+### Added
+
+- `llms.txt` for AI/LLM discoverability (Answer.AI spec)
+- `AGENTS.md` files (root, core, fluent) for agentic AI guidance
+- npm metadata: `repository`, `homepage`, `bugs`, `keywords` in both package.json files
+
+### Changed
+
+- Version bump from 0.1.0 to 1.0.0
+- Fixed README reference from "Fluent UI v8" to "Fluent UI v9"
+- Updated fluent package peer dependency on core from `^0.1.0` to `^1.0.0`
+
 ## [0.1.0] - 2026-03-02
 
 First buildable release. Restructured from a single broken package (extracted from
