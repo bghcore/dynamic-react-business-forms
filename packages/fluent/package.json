@@ -1,6 +1,6 @@
 {
   "name": "@bghcore/dynamic-forms-fluent",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Fluent UI v9 field components for @bghcore/dynamic-forms-core",
   "repository": {
     "type": "git",

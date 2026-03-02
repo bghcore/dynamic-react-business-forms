@@ -16,7 +16,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - run: npm ci --legacy-peer-deps
@@ -33,9 +33,9 @@ jobs:
             exit 1
           fi
 
-      - run: npm publish --workspace packages/core --access public --provenance
+      - run: npm publish --workspace packages/core --access public
 
-      - run: npm publish --workspace packages/fluent --access public --provenance
+      - run: npm publish --workspace packages/fluent --access public
 
       - name: Create GitHub Release
         run: gh release create "$GITHUB_REF_NAME" --generate-notes
