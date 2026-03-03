@@ -2,7 +2,10 @@ name: Publish
 
 on:
   push:
-    tags: ['v*']
+    tags:
+      - 'core-v*'
+      - 'fluent-v*'
+      - 'mui-v*'
 
 jobs:
   publish:
@@ -24,27 +27,46 @@ jobs:
 
       - run: npm run build
 
-      - name: Verify tag matches package versions
+      - name: Determine which package to publish
+        id: pkg
         run: |
-          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
-          CORE_VERSION=$(node -p "require('./packages/core/package.json').version")
-          FLUENT_VERSION=$(node -p "require('./packages/fluent/package.json').version")
-          MUI_VERSION=$(node -p "require('./packages/mui/package.json').version")
-          if [ "$TAG_VERSION" != "$CORE_VERSION" ] || [ "$TAG_VERSION" != "$FLUENT_VERSION" ] || [ "$TAG_VERSION" != "$MUI_VERSION" ]; then
-            echo "Tag version ($TAG_VERSION) does not match package versions (core=$CORE_VERSION, fluent=$FLUENT_VERSION, mui=$MUI_VERSION)"
+          TAG="${GITHUB_REF#refs/tags/}"
+          if [[ "$TAG" == core-v* ]]; then
+            VERSION="${TAG#core-v}"
+            WORKSPACE="packages/core"
+            PKG_NAME="@bghcore/dynamic-forms-core"
+          elif [[ "$TAG" == fluent-v* ]]; then
+            VERSION="${TAG#fluent-v}"
+            WORKSPACE="packages/fluent"
+            PKG_NAME="@bghcore/dynamic-forms-fluent"
+          elif [[ "$TAG" == mui-v* ]]; then
+            VERSION="${TAG#mui-v}"
+            WORKSPACE="packages/mui"
+            PKG_NAME="@bghcore/dynamic-forms-mui"
+          else
+            echo "Unknown tag format: $TAG"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "workspace=$WORKSPACE" >> "$GITHUB_OUTPUT"
+          echo "pkg_name=$PKG_NAME" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag matches package version
+        run: |
+          PKG_VERSION=$(node -p "require('./${{ steps.pkg.outputs.workspace }}/package.json').version")
+          if [ "${{ steps.pkg.outputs.version }}" != "$PKG_VERSION" ]; then
+            echo "Tag version (${{ steps.pkg.outputs.version }}) does not match ${{ steps.pkg.outputs.pkg_name }} version ($PKG_VERSION)"
             exit 1
           fi
 
       - name: Upgrade npm for OIDC trusted publishing
         run: npm install -g npm@latest
 
-      - run: npm publish --workspace packages/core --access public --provenance
-
-      - run: npm publish --workspace packages/fluent --access public --provenance
-
-      - run: npm publish --workspace packages/mui --access public --provenance
+      - name: Publish ${{ steps.pkg.outputs.pkg_name }}
+        run: npm publish --workspace ${{ steps.pkg.outputs.workspace }} --access public --provenance
 
       - name: Create GitHub Release
-        run: gh release create "$GITHUB_REF_NAME" --generate-notes
+        run: gh release create "${{ steps.pkg.outputs.tag }}" --generate-notes --title "${{ steps.pkg.outputs.pkg_name }}@${{ steps.pkg.outputs.version }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
