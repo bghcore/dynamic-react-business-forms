@@ -138,3 +138,24 @@ export function getAsyncValidation(name: string): AsyncValidationFunction | unde
 export function getAsyncValidationRegistry(): Record<string, AsyncValidationFunction> {
   return { ...asyncValidationRegistry };
 }
+
+// --- Cross-field validation registry ---
+
+export type CrossFieldValidationFunction = (
+  values: IEntityData,
+  fieldName: string
+) => string | undefined;
+
+let crossFieldValidationRegistry: Record<string, CrossFieldValidationFunction> = {};
+
+export function registerCrossFieldValidations(
+  custom: Record<string, CrossFieldValidationFunction>
+): void {
+  crossFieldValidationRegistry = { ...crossFieldValidationRegistry, ...custom };
+}
+
+export function getCrossFieldValidation(
+  name: string
+): CrossFieldValidationFunction | undefined {
+  return crossFieldValidationRegistry[name];
+}

@@ -372,12 +372,12 @@ describe("ProcessFieldBusinessRule", () => {
 // ---------------------------------------------------------------------------
 describe("RevertFieldBusinessRule", () => {
   it("reverts affected fields to their fieldConfig defaults", () => {
-    const currentRules: IConfigBusinessRules = {
+    let currentRules: IConfigBusinessRules = {
       fieldRules: GetDefaultBusinessRules(singleDependencyConfigs),
       order: ["status", "priority"],
     };
     // First apply Active rule
-    CombineBusinessRules(
+    currentRules = CombineBusinessRules(
       currentRules,
       ProcessFieldBusinessRule("status", "Active", currentRules, singleDependencyConfigs)
     );
@@ -390,11 +390,11 @@ describe("RevertFieldBusinessRule", () => {
   });
 
   it("preserves component from fieldConfig on revert", () => {
-    const currentRules: IConfigBusinessRules = {
+    let currentRules: IConfigBusinessRules = {
       fieldRules: GetDefaultBusinessRules(componentSwapConfigs),
       order: ["mode", "detail"],
     };
-    CombineBusinessRules(
+    currentRules = CombineBusinessRules(
       currentRules,
       ProcessFieldBusinessRule("mode", "advanced", currentRules, componentSwapConfigs)
     );
@@ -447,11 +447,11 @@ describe("RevertFieldBusinessRule", () => {
   });
 
   it("reverts confirmInput to fieldConfig default", () => {
-    const currentRules: IConfigBusinessRules = {
+    let currentRules: IConfigBusinessRules = {
       fieldRules: GetDefaultBusinessRules(confirmInputConfigs),
       order: ["trigger", "confirmed"],
     };
-    CombineBusinessRules(
+    currentRules = CombineBusinessRules(
       currentRules,
       ProcessFieldBusinessRule("trigger", "Yes", currentRules, confirmInputConfigs)
     );
@@ -495,17 +495,17 @@ describe("ProcessPreviousFieldBusinessRule", () => {
     };
 
     const defaultRules = GetDefaultBusinessRules(configs);
-    const currentRules: IConfigBusinessRules = {
+    let currentRules: IConfigBusinessRules = {
       fieldRules: defaultRules,
       order: ["fieldA", "fieldB", "target"],
     };
 
     // Both fieldA=X and fieldB=P were applied
-    CombineBusinessRules(
+    currentRules = CombineBusinessRules(
       currentRules,
       ProcessFieldBusinessRule("fieldA", "X", currentRules, configs)
     );
-    CombineBusinessRules(
+    currentRules = CombineBusinessRules(
       currentRules,
       ProcessFieldBusinessRule("fieldB", "P", currentRules, configs)
     );
@@ -882,9 +882,9 @@ describe("CombineBusinessRules", () => {
       },
       order: [],
     };
-    CombineBusinessRules(existing, additional);
-    expect(existing.fieldRules.name.required).toBe(true);
-    expect(existing.fieldRules.name.component).toBe("Textbox"); // preserved
+    const result = CombineBusinessRules(existing, additional);
+    expect(result.fieldRules.name.required).toBe(true);
+    expect(result.fieldRules.name.component).toBe("Textbox"); // preserved
   });
 
   it("does not override order when checkOrder is false", () => {
@@ -896,8 +896,8 @@ describe("CombineBusinessRules", () => {
       fieldRules: {},
       order: ["b", "a"],
     };
-    CombineBusinessRules(existing, additional, false);
-    expect(existing.order).toEqual(["a", "b"]);
+    const result = CombineBusinessRules(existing, additional, false);
+    expect(result.order).toEqual(["a", "b"]);
   });
 
   it("overrides order when checkOrder is true and additional order is non-empty", () => {
@@ -909,8 +909,8 @@ describe("CombineBusinessRules", () => {
       fieldRules: {},
       order: ["b", "a"],
     };
-    CombineBusinessRules(existing, additional, true);
-    expect(existing.order).toEqual(["b", "a"]);
+    const result = CombineBusinessRules(existing, additional, true);
+    expect(result.order).toEqual(["b", "a"]);
   });
 
   it("does not override order when checkOrder is true but additional order is empty", () => {
@@ -922,8 +922,8 @@ describe("CombineBusinessRules", () => {
       fieldRules: {},
       order: [],
     };
-    CombineBusinessRules(existing, additional, true);
-    expect(existing.order).toEqual(["a", "b"]);
+    const result = CombineBusinessRules(existing, additional, true);
+    expect(result.order).toEqual(["a", "b"]);
   });
 
   it("creates field rule entry when field does not exist in existing rules", () => {
@@ -937,9 +937,9 @@ describe("CombineBusinessRules", () => {
       },
       order: [],
     };
-    CombineBusinessRules(existing, additional);
-    expect(existing.fieldRules.newField).toBeDefined();
-    expect(existing.fieldRules.newField.component).toBe("Textbox");
+    const result = CombineBusinessRules(existing, additional);
+    expect(result.fieldRules.newField).toBeDefined();
+    expect(result.fieldRules.newField.component).toBe("Textbox");
   });
 
   it("merges multiple fields at once", () => {
@@ -957,9 +957,23 @@ describe("CombineBusinessRules", () => {
       },
       order: [],
     };
+    const result = CombineBusinessRules(existing, additional);
+    expect(result.fieldRules.a.required).toBe(true);
+    expect(result.fieldRules.b.hidden).toBe(true);
+  });
+
+  it("does not mutate the existing config", () => {
+    const existing: IConfigBusinessRules = {
+      fieldRules: { a: { component: "Textbox" } },
+      order: ["a"],
+    };
+    const additional: IConfigBusinessRules = {
+      fieldRules: { a: { required: true } },
+      order: [],
+    };
+    const existingCopy = JSON.parse(JSON.stringify(existing));
     CombineBusinessRules(existing, additional);
-    expect(existing.fieldRules.a.required).toBe(true);
-    expect(existing.fieldRules.b.hidden).toBe(true);
+    expect(existing).toEqual(existingCopy);
   });
 
   it("does not mutate the additional config", () => {
@@ -986,8 +1000,8 @@ describe("CombineBusinessRules", () => {
       fieldRules: { field: { required: true } },
       order: [],
     };
-    CombineBusinessRules(existing, additional);
-    expect(existing.fieldRules.field.dropdownOptions).toEqual(options);
+    const result = CombineBusinessRules(existing, additional);
+    expect(result.fieldRules.field.dropdownOptions).toEqual(options);
   });
 
   it("overrides dropdownOptions when new ones are provided", () => {
@@ -1001,8 +1015,8 @@ describe("CombineBusinessRules", () => {
       fieldRules: { field: { dropdownOptions: newOptions } },
       order: [],
     };
-    CombineBusinessRules(existing, additional);
-    expect(existing.fieldRules.field.dropdownOptions).toEqual(newOptions);
+    const result = CombineBusinessRules(existing, additional);
+    expect(result.fieldRules.field.dropdownOptions).toEqual(newOptions);
   });
 });
 

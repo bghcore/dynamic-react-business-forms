@@ -116,7 +116,7 @@ export const HookInlineForm: React.FC<IHookInlineFormProps> = (props: IHookInlin
     defaultValues
   });
 
-  const { reset, resetField, handleSubmit, trigger, setValue, getValues, setError, formState } = formMethods;
+  const { reset, resetField, handleSubmit, trigger, setValue, getValues, setError, clearErrors, formState } = formMethods;
 
   const businessRulesRef = React.useRef<IBusinessRulesState>(businessRules);
   const formStateRef = React.useRef<FormState<IEntityData>>({ ...formState });
@@ -231,6 +231,17 @@ export const HookInlineForm: React.FC<IHookInlineFormProps> = (props: IHookInlin
   const validateAndSave = () => {
     const { dirtyFields } = formStateRef.current;
     const businessRules = businessRulesRef.current;
+
+    // Clear errors on hidden fields before validation so that fields
+    // hidden by business rules do not block form submission.
+    const configRules = businessRules.configRules[configName];
+    if (configRules?.fieldRules) {
+      Object.keys(configRules.fieldRules).forEach(fieldName => {
+        if (configRules.fieldRules[fieldName]?.hidden) {
+          clearErrors(fieldName);
+        }
+      });
+    }
 
     setStatusMessage(HookInlineFormStrings.validating);
     trigger().then((valid: boolean) => {

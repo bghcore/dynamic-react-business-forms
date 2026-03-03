@@ -12,8 +12,27 @@ import { validateDependencyGraph } from "./DependencyGraphValidator";
 type FieldDependencies = Dictionary<Dictionary<IFieldConfig>>;
 
 /**
- * Normalizes field config by mapping deprecated `isReadonly` to `readOnly`.
- * Emits a dev-mode warning when `isReadonly` is used.
+ * Compares a field value against a dependency rule key.
+ * Uses string comparison but explicitly handles null/undefined/boolean
+ * to prevent phantom matches.
+ */
+function dependencyValueMatches(fieldValue: unknown, ruleKey: string): boolean {
+  if (fieldValue === null || fieldValue === undefined) {
+    return ruleKey === "";
+  }
+  return String(fieldValue) === ruleKey;
+}
+
+/**
+ * Normalizes a field config by mapping the deprecated `isReadonly` property to `readOnly`.
+ *
+ * If the config uses `isReadonly` but not `readOnly`, returns a new config object with
+ * `readOnly` set to the `isReadonly` value. Emits a console warning in dev mode to
+ * encourage migration to the `readOnly` property.
+ *
+ * @param fieldName - The field name, used for the deprecation warning message.
+ * @param config - The field config to normalize.
+ * @returns The original config if no normalization is needed, or a new config with `readOnly` set.
  */
 export const normalizeFieldConfig = (fieldName: string, config: IFieldConfig): IFieldConfig => {
   if (config.isReadonly !== undefined && config.readOnly === undefined) {
@@ -29,13 +48,28 @@ export const normalizeFieldConfig = (fieldName: string, config: IFieldConfig): I
   return config;
 };
 
+/**
+ * Evaluates all business rules for every field in a form configuration.
+ *
+ * This is the full initialization lifecycle:
+ * 1. Builds (or accepts pre-built) default business rules from field configs.
+ * 2. Iterates every field and applies dependency rules based on current entity data.
+ * 3. Evaluates combo (AND) rules, dropdown dependency filters, and order dependencies.
+ * 4. Appends any deprecated dropdown options that match current field values.
+ *
+ * @param entityData - Current entity data (form values) used to evaluate dependency conditions.
+ * @param fieldConfigs - Static field configuration dictionary defining all fields and their rules.
+ * @param areAllFieldsReadonly - If true, forces all fields to read-only regardless of individual config.
+ * @param defaultFieldRules - Optional pre-built default rules; if omitted, built from fieldConfigs.
+ * @returns The fully evaluated config business rules containing field rules and field order.
+ */
 export const ProcessAllBusinessRules = (
   entityData: IEntityData,
   fieldConfigs: Dictionary<IFieldConfig>,
   areAllFieldsReadonly?: boolean,
   defaultFieldRules?: Dictionary<IBusinessRule>
 ): IConfigBusinessRules => {
-  const configBusinessRules = {
+  let configBusinessRules: IConfigBusinessRules = {
     fieldRules: defaultFieldRules ? defaultFieldRules : GetDefaultBusinessRules(fieldConfigs, areAllFieldsReadonly),
     order: Object.keys(fieldConfigs)
   };
@@ -43,12 +77,12 @@ export const ProcessAllBusinessRules = (
   Object.keys(configBusinessRules.fieldRules).forEach(fieldName => {
     const fieldValue = GetFieldValue(entityData, fieldName);
 
-    CombineBusinessRules(
+    configBusinessRules = CombineBusinessRules(
       configBusinessRules,
       ProcessFieldBusinessRule(fieldName, fieldValue, configBusinessRules, fieldConfigs)
     );
 
-    CombineBusinessRules(configBusinessRules, {
+    configBusinessRules = CombineBusinessRules(configBusinessRules, {
       fieldRules: ProcessComboFieldBusinessRule(
         fieldName,
         configBusinessRules.fieldRules[fieldName],
@@ -58,7 +92,7 @@ export const ProcessAllBusinessRules = (
       order: configBusinessRules.order
     });
 
-    CombineBusinessRules(
+    configBusinessRules = CombineBusinessRules(
       configBusinessRules,
       ProcessFieldDropdownValues(
         fieldName,
@@ -70,7 +104,7 @@ export const ProcessAllBusinessRules = (
     );
 
     if (configBusinessRules.fieldRules[fieldName]?.pivotalRootField) {
-      CombineBusinessRules(
+      configBusinessRules = CombineBusinessRules(
         configBusinessRules,
         ProcessFieldOrderDepencendies(
           configBusinessRules.fieldRules[fieldName]?.pivotalRootField,
@@ -96,6 +130,22 @@ export const ProcessAllBusinessRules = (
   return configBusinessRules;
 };
 
+/**
+ * Evaluates dependency rules for a single field based on its current value.
+ *
+ * Looks up the field's `dependencies` config, finds the entry matching the current
+ * field value, and applies the resulting rule overrides to each dependent field.
+ * If `targetField` is provided, only that specific dependent field is evaluated
+ * (used during re-application of other fields' rules after a revert).
+ *
+ * @param fieldName - The field whose value has changed (the trigger field).
+ * @param fieldValue - The current value of the trigger field.
+ * @param currentBusinessRules - The current state of all field rules for this config.
+ * @param fieldConfigs - Static field configuration dictionary.
+ * @param pendingBusinessRules - In-progress rule changes from earlier steps in the evaluation pipeline.
+ * @param targetField - If set, only evaluate rules for this specific dependent field.
+ * @returns A config business rules object containing only the changed field rules.
+ */
 export const ProcessFieldBusinessRule = (
   fieldName: string,
   fieldValue: unknown,
@@ -112,7 +162,7 @@ export const ProcessFieldBusinessRule = (
 
   if (fieldConfigs[fieldName]?.dependencies) {
     Object.keys(fieldConfigs[fieldName].dependencies!).forEach(businessValue => {
-      if (`${fieldValue}` === `${businessValue}` && !businessRulesChanged) {
+      if (dependencyValueMatches(fieldValue, businessValue) && !businessRulesChanged) {
         const dependentFields = fieldConfigs[fieldName].dependencies![businessValue];
         if (targetField && currentBusinessRules.fieldRules?.[targetField] && dependentFields[targetField]) {
           newConfigBusinessRules.fieldRules[targetField] = ApplyBusinessRule(
@@ -170,10 +220,10 @@ export const GetFieldOrder = (
   let orderRulesChecked = false;
 
   Object.keys(orderDependencies).forEach(businessValue => {
-    if (fieldValue === `${businessValue}` && Array.isArray(orderDependencies[businessValue]) && !orderRulesChecked) {
+    if (dependencyValueMatches(fieldValue, businessValue) && Array.isArray(orderDependencies[businessValue]) && !orderRulesChecked) {
       result = orderDependencies[businessValue] as string[];
       orderRulesChecked = true;
-    } else if (fieldValue === `${businessValue}` && !orderRulesChecked) {
+    } else if (dependencyValueMatches(fieldValue, businessValue) && !orderRulesChecked) {
       const newFieldName = Object.keys(orderDependencies[businessValue])[0];
       result = GetFieldOrder(
         (orderDependencies[businessValue] as OrderDependencyMap)[newFieldName] as OrderDependencyMap,
@@ -187,6 +237,22 @@ export const GetFieldOrder = (
   return result;
 };
 
+/**
+ * Re-applies rules from OTHER fields that also affect the same dependents as the changed field.
+ *
+ * When a field's value changes and its previous rules are reverted, dependent fields may lose
+ * rule overrides that were set by other fields. This function finds all fields that previously
+ * affected the same dependents and re-evaluates their current rules so the dependent fields
+ * retain the correct state from all active rule sources.
+ *
+ * @param fieldName - The field whose value changed (used to exclude from re-evaluation).
+ * @param previousValue - The field's value before the change, used to look up which dependents were affected.
+ * @param currentBusinessRules - Current state of all field rules for this config.
+ * @param fieldConfigs - Static field configuration dictionary.
+ * @param entityData - Current entity data for evaluating other fields' dependency conditions.
+ * @param pendingBusinessRules - In-progress rule changes from earlier evaluation steps.
+ * @returns A config business rules object containing re-applied rules from other source fields.
+ */
 export const ProcessPreviousFieldBusinessRule = (
   fieldName: string,
   previousValue: string,
@@ -195,7 +261,7 @@ export const ProcessPreviousFieldBusinessRule = (
   entityData: IEntityData,
   pendingBusinessRules: Dictionary<IBusinessRule>
 ): IConfigBusinessRules => {
-  const newConfigBusinessRules: IConfigBusinessRules = {
+  let newConfigBusinessRules: IConfigBusinessRules = {
     fieldRules: {},
     order: []
   };
@@ -206,7 +272,7 @@ export const ProcessPreviousFieldBusinessRule = (
       if (currentBusinessRules.fieldRules && currentBusinessRules.fieldRules[prevAffectedField].dependsOnFields) {
         currentBusinessRules.fieldRules[prevAffectedField].dependsOnFields.forEach(dependOnField => {
           if (dependOnField !== fieldName) {
-            CombineBusinessRules(
+            newConfigBusinessRules = CombineBusinessRules(
               newConfigBusinessRules,
               ProcessFieldBusinessRule(
                 dependOnField,
@@ -226,6 +292,20 @@ export const ProcessPreviousFieldBusinessRule = (
   return newConfigBusinessRules;
 };
 
+/**
+ * Resets dependent fields to their default config state when a field's value changes.
+ *
+ * Before applying new dependency rules, the previous value's affected dependents must be
+ * reverted to their baseline configuration (component, required, hidden, readOnly, etc.)
+ * so that stale rule overrides do not persist. Dropdown options are preserved from the
+ * current business rules since they may have been set by other dependency sources.
+ *
+ * @param fieldName - The field whose value changed.
+ * @param previousValue - The field's value before the change, used to look up which dependents to revert.
+ * @param currentBusinessRules - Current state of all field rules for this config.
+ * @param fieldConfigs - Static field configuration dictionary (used as the source for default values).
+ * @returns A config business rules object containing the reverted field rules.
+ */
 export const RevertFieldBusinessRule = (
   fieldName: string,
   previousValue: string,
@@ -268,6 +348,21 @@ export const RevertFieldBusinessRule = (
   return newConfigBusinessRules;
 };
 
+/**
+ * Merges a dependency config (from IFieldConfig.dependencies) into an existing business rule.
+ *
+ * Uses a three-tier priority system for each property:
+ * 1. The dependency override value (`updatedBusinessRule`) -- highest priority.
+ * 2. Any in-progress rule from earlier evaluation steps (`inProgressBusinessRule`).
+ * 3. The existing rule's current value (`businessRule`) -- lowest priority / fallback.
+ *
+ * Properties are only overwritten if the higher-priority source has a non-null value.
+ *
+ * @param businessRule - The current rule state for the field.
+ * @param updatedBusinessRule - The dependency config to apply (from IFieldConfig).
+ * @param inProgressBusinessRule - In-progress rule changes from earlier pipeline steps.
+ * @returns A new IBusinessRule with merged values.
+ */
 const ApplyBusinessRule = (
   businessRule?: IBusinessRule,
   updatedBusinessRule?: IFieldConfig,
@@ -319,6 +414,19 @@ const ApplyBusinessRule = (
   };
 };
 
+/**
+ * Builds the initial (default) business rules state from static field configurations.
+ *
+ * For each field, creates an IBusinessRule with values derived from the field config
+ * (component type, required, hidden, readOnly, validations, value functions, etc.).
+ * Then wires up the bidirectional dependency graph: dependentFields <-> dependsOnFields,
+ * order dependencies, combo dependencies, and dropdown dependencies.
+ * Finally, validates the dependency graph for cycles in dev mode.
+ *
+ * @param fieldConfigs - Static field configuration dictionary.
+ * @param areAllFieldsReadonly - If true, forces readOnly on all fields.
+ * @returns A dictionary of default business rules keyed by field name.
+ */
 export const GetDefaultBusinessRules = (
   fieldConfigs: Dictionary<IFieldConfig>,
   areAllFieldsReadonly?: boolean
@@ -349,7 +457,8 @@ export const GetDefaultBusinessRules = (
           : [],
       dropdownOptions: fieldConfig.dropdownOptions,
       dependentDropdownFields: [],
-      dependsOnDropdownFields: GetDependsOnDropDownFields(fieldConfig.dropdownDependencies)
+      dependsOnDropdownFields: GetDependsOnDropDownFields(fieldConfig.dropdownDependencies),
+      computedValue: fieldConfig.computedValue,
     };
   });
 
@@ -424,6 +533,21 @@ const RecursiveGetOrderDependentFields = (
   });
 };
 
+/**
+ * Evaluates AND-condition (combo) rules for a single field.
+ *
+ * Combo rules require ALL referenced fields to have specific values before the rule
+ * is applied. If all conditions are met, applies the `updatedConfig` from the
+ * field's `dependencyRules`. If any condition fails, reverts the field to its
+ * default config state (component, required, hidden, readOnly, validations, etc.).
+ *
+ * @param fieldName - The field being evaluated.
+ * @param currentBusinessRule - The current rule state for this field.
+ * @param fieldConfig - The static field config containing dependencyRules.
+ * @param entityData - Current entity data for evaluating conditions.
+ * @param pendingBusinessRule - In-progress rule changes from earlier evaluation steps.
+ * @returns A dictionary containing the updated rule for this field (keyed by fieldName).
+ */
 export const ProcessComboFieldBusinessRule = (
   fieldName: string,
   currentBusinessRule: IBusinessRule,
@@ -464,6 +588,17 @@ export const ProcessComboFieldBusinessRule = (
   return newBusinessRules;
 };
 
+/**
+ * Processes dropdown options by applying meta icon data and alphabetical sorting.
+ *
+ * If the field config has `meta.data`, each option is enriched with icon name and title
+ * from the corresponding index in the meta array. Options are then sorted alphabetically
+ * unless `meta.disableAlphabeticSort` is true.
+ *
+ * @param values - The raw dropdown option array to process.
+ * @param fieldConfig - The field config containing optional meta and sort settings.
+ * @returns A new array of processed dropdown options.
+ */
 export const ProcessDropdownOptions = (values: IDropdownOption[], fieldConfig: IFieldConfig): IDropdownOption[] => {
   let dropdownOptions: IDropdownOption[] = [...values];
 
@@ -505,6 +640,21 @@ const GetDependsOnDropDownFields = (depdendencyRules?: Dictionary<Dictionary<str
   return result;
 };
 
+/**
+ * Filters dropdown options for dependent fields based on the trigger field's value.
+ *
+ * When a field has `dropdownDependencies` configured, this function finds the entry
+ * matching the field's current value and updates each dependent field's dropdown options
+ * to only include the values specified in the dependency rule. Also appends any deprecated
+ * options that match the dependent field's current value.
+ *
+ * @param fieldName - The trigger field whose value determines which dropdown options to show.
+ * @param entityData - Current entity data for reading field values.
+ * @param currentBusinessRules - Current state of all field rules for this config.
+ * @param fieldConfigs - Static field configuration dictionary.
+ * @param pendingBusinessRules - In-progress rule changes from earlier evaluation steps.
+ * @returns A config business rules object containing updated dropdown options for dependent fields.
+ */
 export const ProcessFieldDropdownValues = (
   fieldName: string,
   entityData: IEntityData,
@@ -521,7 +671,7 @@ export const ProcessFieldDropdownValues = (
 
   if (fieldConfigs[fieldName]?.dropdownDependencies) {
     Object.keys(fieldConfigs[fieldName].dropdownDependencies!).forEach(businessValue => {
-      if (`${fieldValue}` === `${businessValue}` && !businessRulesChanged) {
+      if (dependencyValueMatches(fieldValue, businessValue) && !businessRulesChanged) {
         const dependentFields = fieldConfigs[fieldName].dropdownDependencies![businessValue];
 
         Object.keys(dependentFields).forEach(dependentFieldName => {
@@ -559,15 +709,32 @@ export const ProcessFieldDropdownValues = (
   return newConfigBusinessRules;
 };
 
+/**
+ * Merges two config business rules objects into a new object (does not mutate inputs).
+ *
+ * For each field in the additional rules, merges its properties into the existing rules
+ * using a "non-null wins" strategy: if a property in the additional rules is non-null,
+ * it overwrites the existing value; otherwise the existing value is preserved.
+ *
+ * Field order is taken from the additional rules only when `checkOrder` is true and
+ * the additional rules have a non-empty order array; otherwise the existing order is kept.
+ *
+ * @param existingConfigBusinessRules - The base config rules to merge into.
+ * @param additionalConfigBusinessRules - The new rule changes to merge.
+ * @param checkOrder - If true, use the additional rules' field order when available.
+ * @returns A new IConfigBusinessRules object with merged field rules and order.
+ */
 export const CombineBusinessRules = (
   existingConfigBusinessRules: IConfigBusinessRules,
   additionalConfigBusinessRules: IConfigBusinessRules,
   checkOrder?: boolean
-) => {
+): IConfigBusinessRules => {
+  const mergedFieldRules = { ...existingConfigBusinessRules.fieldRules };
+
   Object.keys(additionalConfigBusinessRules.fieldRules).forEach(fieldName => {
-    if (isNull(existingConfigBusinessRules.fieldRules[fieldName])) {
-      existingConfigBusinessRules.fieldRules[fieldName] = {};
-    }
+    const existing = mergedFieldRules[fieldName] ?? {};
+    const additional = additionalConfigBusinessRules.fieldRules[fieldName];
+
     const {
       component: newComponent,
       required: newRequired,
@@ -577,7 +744,7 @@ export const CombineBusinessRules = (
       valueFunction: newValueFunction,
       confirmInput: newConfirmInput,
       dropdownOptions: newDropdownOptions
-    } = additionalConfigBusinessRules.fieldRules[fieldName];
+    } = additional;
     const {
       component: oldComponent,
       required: oldRequired,
@@ -587,9 +754,10 @@ export const CombineBusinessRules = (
       valueFunction: oldValueFunction,
       confirmInput: oldConfirmInput,
       dropdownOptions: oldDropdownOptions
-    } = existingConfigBusinessRules.fieldRules[fieldName];
-    existingConfigBusinessRules.fieldRules[fieldName] = {
-      ...existingConfigBusinessRules.fieldRules[fieldName],
+    } = existing;
+
+    mergedFieldRules[fieldName] = {
+      ...existing,
       component: !isNull(newComponent) ? newComponent : oldComponent,
       required: !isNull(newRequired) ? newRequired : oldRequired,
       hidden: !isNull(newHidden) ? newHidden : oldHidden,
@@ -600,12 +768,26 @@ export const CombineBusinessRules = (
       dropdownOptions: !isNull(newDropdownOptions) ? newDropdownOptions : oldDropdownOptions
     };
   });
-  existingConfigBusinessRules.order =
-    checkOrder && additionalConfigBusinessRules.order && additionalConfigBusinessRules.order.length > 0
+
+  return {
+    fieldRules: mergedFieldRules,
+    order: checkOrder && additionalConfigBusinessRules.order && additionalConfigBusinessRules.order.length > 0
       ? [...additionalConfigBusinessRules.order]
-      : existingConfigBusinessRules.order;
+      : [...existingConfigBusinessRules.order]
+  };
 };
 
+/**
+ * Retrieves a field's value from entity data, supporting dotted path traversal.
+ *
+ * For simple field names (e.g., "status"), returns `entityData["status"]`.
+ * For dotted paths (e.g., "Parent.category"), traverses nested objects.
+ * Returns an empty string if the entity data is empty or the path is not found.
+ *
+ * @param entityData - The entity data object to read from.
+ * @param fieldName - The field name, optionally using dot notation for nested paths.
+ * @returns The field value as a string, or empty string if not found.
+ */
 export const GetFieldValue = (entityData: IEntityData, fieldName: string): string => {
   if (isEmpty(entityData)) {
     return "";
@@ -629,6 +811,16 @@ export const GetFieldValue = (entityData: IEntityData, fieldName: string): strin
   }
 };
 
+/**
+ * Compares two field order arrays for exact equality (same length, same elements in same positions).
+ *
+ * Used to determine whether a business rule evaluation produced a new field order that
+ * requires dispatching an update to the reducer.
+ *
+ * @param order - The new field order array.
+ * @param previousOrder - The previous field order array.
+ * @returns True if both arrays have the same elements in the same order; false otherwise.
+ */
 export const SameFieldOrder = (order: string[], previousOrder: string[]): boolean => {
   return (
     order.length === previousOrder.length &&

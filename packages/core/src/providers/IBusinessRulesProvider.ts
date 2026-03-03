@@ -20,6 +20,8 @@ export interface IBusinessRulesProvider {
     previousValue: string,
     fieldConfigs: Dictionary<IFieldConfig>
   ) => void;
+  /** Clears business rules state. If configName is provided, clears only that config. If omitted, clears all configs. */
+  clearBusinessRules: (configName?: string) => void;
 }
 
 export const defaultBusinessRulesState: IBusinessRulesState = {

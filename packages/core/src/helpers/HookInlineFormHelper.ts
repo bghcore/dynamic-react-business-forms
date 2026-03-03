@@ -9,7 +9,7 @@ import { IDeprecatedOption, IFieldConfig } from "../types/IFieldConfig";
 import { IFieldToRender } from "../types/IFieldToRender";
 import { IDropdownOption } from "../types/IDropdownOption";
 import { GetDefaultBusinessRules, ProcessDropdownOptions } from "./BusinessRulesHelper";
-import { getValidation, getAsyncValidation } from "./ValidationRegistry";
+import { getValidation, getAsyncValidation, getCrossFieldValidation } from "./ValidationRegistry";
 import { executeValueFunction } from "./ValueFunctionRegistry";
 
 export const GetChildEntity = (
@@ -424,4 +424,19 @@ export const GetFieldsToRender = (
       return { fieldName, softHidden: false };
     });
   }
+};
+
+export const CheckCrossFieldValidationRules = (
+  entityData: IEntityData,
+  fieldName: string,
+  crossFieldValidations: string[]
+): string | undefined => {
+  for (const validationName of crossFieldValidations) {
+    const validationFn = getCrossFieldValidation(validationName);
+    if (validationFn) {
+      const result = validationFn(entityData, fieldName);
+      if (result) return result;
+    }
+  }
+  return undefined;
 };

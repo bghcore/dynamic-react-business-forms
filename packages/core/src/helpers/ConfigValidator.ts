@@ -5,21 +5,27 @@ import { detectDependencyCycles } from "./DependencyGraphValidator";
 import { GetDefaultBusinessRules } from "./BusinessRulesHelper";
 
 export interface IConfigValidationError {
-  type: "missing_dependency_target" | "unregistered_component" | "unregistered_validation" | "unregistered_async_validation" | "circular_dependency" | "missing_dropdown_options";
+  type: "missing_dependency_target" | "unregistered_component" | "unregistered_validation" | "unregistered_async_validation" | "circular_dependency" | "missing_dropdown_options" | "self_dependency";
   fieldName: string;
   message: string;
   details?: string;
 }
 
 /**
- * Validates field configs for common issues.
- * Intended for dev-mode use — checks dependency targets exist,
- * component types are registered, validation names reference
- * registered validators, and circular deps.
+ * Validates field configs for common issues at dev time.
  *
- * @param fieldConfigs The field configuration dictionary
- * @param registeredComponents Optional set of registered component type names
- * @returns Array of validation errors (empty if config is valid)
+ * Performs the following checks on every field config:
+ * - **missing_dependency_target**: dependency/dropdown dependency/combo rule references a field not in the config.
+ * - **self_dependency**: a field's dependency rules target itself, which causes infinite evaluation loops.
+ * - **unregistered_component**: the component type is not in the provided registered components set.
+ * - **unregistered_validation**: a sync validation name is not in the ValidationRegistry.
+ * - **unregistered_async_validation**: an async validation name is not in the async ValidationRegistry.
+ * - **missing_dropdown_options**: a Dropdown/StatusDropdown/Multiselect has no options and no dependency providing them.
+ * - **circular_dependency**: the dependency graph contains cycles (detected via DependencyGraphValidator).
+ *
+ * @param fieldConfigs - The field configuration dictionary to validate.
+ * @param registeredComponents - Optional set of registered component type names for component type checking.
+ * @returns Array of validation errors (empty if config is valid).
  */
 export function validateFieldConfigs(
   fieldConfigs: Dictionary<IFieldConfig>,
@@ -29,9 +35,16 @@ export function validateFieldConfigs(
   const fieldNames = new Set(Object.keys(fieldConfigs));
 
   for (const [fieldName, config] of Object.entries(fieldConfigs)) {
-    // Check dependency targets exist
+    // Check dependency targets exist and check for self-dependencies
     if (config.dependencies) {
       for (const [value, dependentFields] of Object.entries(config.dependencies)) {
+        if (fieldName in dependentFields) {
+          errors.push({
+            type: "self_dependency",
+            fieldName,
+            message: `Field "${fieldName}" has a dependency on itself for value "${value}"`,
+          });
+        }
         for (const targetField of Object.keys(dependentFields)) {
           if (!fieldNames.has(targetField)) {
             errors.push({

@@ -1,27 +1,49 @@
-import { deepCopy } from "../utils";
+import { isNull } from "../utils";
 import BusinessRulesActionType from "../types/IBusinessRuleAction";
 import { ActionTypeKeys } from "../types/IBusinessRuleActionKeys";
 import { IBusinessRulesState } from "../types/IBusinessRulesState";
 import { defaultBusinessRulesState } from "../providers/IBusinessRulesProvider";
 
 const businessRulesReducer = (state: IBusinessRulesState = defaultBusinessRulesState, action: BusinessRulesActionType): IBusinessRulesState => {
-  const configName = action.payload.configName;
   switch (action.type) {
     case ActionTypeKeys.BUSINESSRULES_SET: {
-      const newAddState = deepCopy(state);
-      newAddState.configRules[configName] = { ...action.payload.configBusinessRules };
-      return newAddState;
+      const configName = action.payload.configName!;
+      return {
+        configRules: {
+          ...state.configRules,
+          [configName]: { ...action.payload.configBusinessRules! }
+        }
+      };
     }
     case ActionTypeKeys.BUSINESSRULES_UPDATE: {
-      const newUpdateState = deepCopy(state);
-      Object.keys(action.payload.configBusinessRules.fieldRules).forEach(fieldName => {
-        newUpdateState.configRules[configName].fieldRules[fieldName] = {
-          ...newUpdateState.configRules[configName].fieldRules[fieldName],
-          ...action.payload.configBusinessRules.fieldRules[fieldName]
+      const configName = action.payload.configName!;
+      const existingConfig = state.configRules[configName];
+      if (!existingConfig) return state;
+
+      const updatedFieldRules = { ...existingConfig.fieldRules };
+      Object.keys(action.payload.configBusinessRules!.fieldRules).forEach(fieldName => {
+        updatedFieldRules[fieldName] = {
+          ...updatedFieldRules[fieldName],
+          ...action.payload.configBusinessRules!.fieldRules[fieldName]
         };
       });
-      newUpdateState.configRules[configName].order = action.payload.configBusinessRules.order;
-      return newUpdateState;
+
+      return {
+        configRules: {
+          ...state.configRules,
+          [configName]: {
+            fieldRules: updatedFieldRules,
+            order: action.payload.configBusinessRules!.order
+          }
+        }
+      };
+    }
+    case ActionTypeKeys.BUSINESSRULES_CLEAR: {
+      if (action.payload.configName) {
+        const { [action.payload.configName]: _, ...remaining } = state.configRules;
+        return { configRules: remaining };
+      }
+      return defaultBusinessRulesState;
     }
     default:
       return state;

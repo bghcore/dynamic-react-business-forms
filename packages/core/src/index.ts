@@ -51,6 +51,7 @@ export {
   ShowField,
   CombineSchemaConfig,
   GetFieldsToRender,
+  CheckCrossFieldValidationRules,
 } from "./helpers/HookInlineFormHelper";
 
 export { SortDropdownOptions } from "./helpers/FieldHelper";
@@ -74,8 +75,10 @@ export {
   createNumericRangeValidation,
   createPatternValidation,
   createRequiredIfValidation,
+  registerCrossFieldValidations,
+  getCrossFieldValidation,
 } from "./helpers/ValidationRegistry";
-export type { ValidationFunction, AsyncValidationFunction } from "./helpers/ValidationRegistry";
+export type { ValidationFunction, AsyncValidationFunction, CrossFieldValidationFunction } from "./helpers/ValidationRegistry";
 
 export { registerValueFunctions, getValueFunction, executeValueFunction } from "./helpers/ValueFunctionRegistry";
 export type { ValueFunction } from "./helpers/ValueFunctionRegistry";
@@ -126,3 +129,17 @@ export { useBeforeUnload } from "./hooks/useBeforeUnload";
 
 // Form State Serialization
 export { serializeFormState, deserializeFormState } from "./utils/formStateSerialization";
+
+// Expression Engine
+export { evaluateExpression, extractExpressionDependencies } from "./helpers/ExpressionEngine";
+
+// Rule Tracing / Debugging
+export {
+  enableRuleTracing,
+  disableRuleTracing,
+  traceRuleEvent,
+  getRuleTraceLog,
+  clearRuleTraceLog,
+  isRuleTracingEnabled,
+} from "./helpers/RuleTracer";
+export type { IRuleTraceEvent } from "./helpers/RuleTracer";

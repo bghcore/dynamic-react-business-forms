@@ -59,6 +59,13 @@ export const BusinessRulesProvider: React.FC<React.PropsWithChildren<{}>> = (
     return configBusinessRules;
   }, []);
 
+  const clearBusinessRules = React.useCallback((configName?: string) => {
+    businessRulesDispatch({
+      type: ActionTypeKeys.BUSINESSRULES_CLEAR,
+      payload: { configName }
+    });
+  }, []);
+
   const processBusinessRule = React.useCallback((
     entityData: IEntityData,
     configName: string,
@@ -73,17 +80,17 @@ export const BusinessRulesProvider: React.FC<React.PropsWithChildren<{}>> = (
       (businessRules.configRules?.[configName]?.fieldRules[fieldName]?.comboDependentFields?.length ?? 0) > 0 ||
       (businessRules.configRules?.[configName]?.fieldRules[fieldName]?.dependentDropdownFields?.length ?? 0) > 0
     ) {
-      const pendingBusinessRules: IConfigBusinessRules = {
+      let pendingBusinessRules: IConfigBusinessRules = {
         fieldRules: {},
         order: [...businessRules.configRules[configName].order]
       };
 
-      CombineBusinessRules(
+      pendingBusinessRules = CombineBusinessRules(
         pendingBusinessRules,
         RevertFieldBusinessRule(fieldName, previousValue, businessRules.configRules[configName], fieldConfigs)
       );
 
-      CombineBusinessRules(
+      pendingBusinessRules = CombineBusinessRules(
         pendingBusinessRules,
         ProcessPreviousFieldBusinessRule(
           fieldName,
@@ -95,7 +102,7 @@ export const BusinessRulesProvider: React.FC<React.PropsWithChildren<{}>> = (
         )
       );
 
-      CombineBusinessRules(
+      pendingBusinessRules = CombineBusinessRules(
         pendingBusinessRules,
         ProcessFieldBusinessRule(
           fieldName,
@@ -107,7 +114,7 @@ export const BusinessRulesProvider: React.FC<React.PropsWithChildren<{}>> = (
       );
 
       businessRules.configRules[configName].fieldRules[fieldName].comboDependentFields?.forEach(dependentField => {
-        CombineBusinessRules(pendingBusinessRules, {
+        pendingBusinessRules = CombineBusinessRules(pendingBusinessRules, {
           fieldRules: ProcessComboFieldBusinessRule(
             dependentField,
             businessRules.configRules[configName].fieldRules[dependentField],
@@ -119,7 +126,7 @@ export const BusinessRulesProvider: React.FC<React.PropsWithChildren<{}>> = (
         });
       });
 
-      CombineBusinessRules(
+      pendingBusinessRules = CombineBusinessRules(
         pendingBusinessRules,
         ProcessFieldDropdownValues(
           fieldName,
@@ -131,7 +138,7 @@ export const BusinessRulesProvider: React.FC<React.PropsWithChildren<{}>> = (
       );
 
       if (businessRules.configRules?.[configName]?.fieldRules[fieldName]?.pivotalRootField) {
-        CombineBusinessRules(
+        pendingBusinessRules = CombineBusinessRules(
           pendingBusinessRules,
           ProcessFieldOrderDepencendies(
             businessRules.configRules?.[configName]?.fieldRules[fieldName]?.pivotalRootField,
@@ -157,8 +164,9 @@ export const BusinessRulesProvider: React.FC<React.PropsWithChildren<{}>> = (
   const providerValue: IBusinessRulesProvider = React.useMemo(() => ({
     businessRules,
     initBusinessRules,
-    processBusinessRule
-  }), [businessRules, initBusinessRules, processBusinessRule]);
+    processBusinessRule,
+    clearBusinessRules
+  }), [businessRules, initBusinessRules, processBusinessRule, clearBusinessRules]);
 
   return <BusinessRulesContext.Provider value={providerValue}>{props.children}</BusinessRulesContext.Provider>;
 };

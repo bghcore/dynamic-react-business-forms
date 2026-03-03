@@ -17,5 +17,13 @@ export interface IUpdateBusinessRules {
   };
 }
 
-type BusinessRulesActionType = IAddBusinessRules | IUpdateBusinessRules;
+export interface IClearBusinessRules {
+  readonly type: ActionTypeKeys.BUSINESSRULES_CLEAR;
+  readonly payload: {
+    /** If provided, only clear rules for this config. If undefined, clear all configs. */
+    readonly configName?: string;
+  };
+}
+
+type BusinessRulesActionType = IAddBusinessRules | IUpdateBusinessRules | IClearBusinessRules;
 export default BusinessRulesActionType;
