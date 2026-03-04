@@ -1,7 +1,7 @@
 import { IEntityData } from "../utils";
 import { IWizardStep } from "../types/IWizardConfig";
-import { Dictionary } from "../utils";
-import { IBusinessRule } from "../types/IBusinessRule";
+import { IRuntimeFieldState } from "../types/IRuntimeFieldState";
+import { evaluateCondition } from "./ConditionEvaluator";
 
 export function getVisibleSteps(
   steps: IWizardStep[],
@@ -9,19 +9,18 @@ export function getVisibleSteps(
 ): IWizardStep[] {
   return steps.filter(step => {
     if (!step.visibleWhen) return true;
-    const fieldValue = String(entityData[step.visibleWhen.fieldName] ?? "");
-    return step.visibleWhen.values.includes(fieldValue);
+    return evaluateCondition(step.visibleWhen, entityData);
   });
 }
 
 export function getStepFields(
   step: IWizardStep,
-  fieldRules?: Dictionary<IBusinessRule>
+  fieldStates?: Record<string, IRuntimeFieldState>
 ): string[] {
-  if (!fieldRules) return step.fields;
+  if (!fieldStates) return step.fields;
   return step.fields.filter(fieldName => {
-    const rule = fieldRules[fieldName];
-    return !rule?.hidden;
+    const state = fieldStates[fieldName];
+    return !state?.hidden;
   });
 }
 

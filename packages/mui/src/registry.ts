@@ -20,7 +20,7 @@ import HookReadOnlyRichText from "./fields/readonly/HookReadOnlyRichText";
 import HookReadOnlyWithButton from "./fields/readonly/HookReadOnlyWithButton";
 import React from "react";
 
-/** Creates the default Material UI field registry for use with InjectedHookFieldProvider */
+/** Creates the default Material UI field registry for use with InjectedFieldProvider */
 export function createMuiFieldRegistry(): Dictionary<React.JSX.Element> {
   return {
     [ComponentTypes.Textbox]: React.createElement(HookTextbox),

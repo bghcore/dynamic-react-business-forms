@@ -1,58 +1,47 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   detectDependencyCycles,
-  detectOrderDependencyCycles,
+  detectSelfDependencies,
   validateDependencyGraph,
 } from "../../helpers/DependencyGraphValidator";
-import { Dictionary } from "../../utils";
-import { IBusinessRule } from "../../types/IBusinessRule";
-import { OrderDependencyMap } from "../../types/IOrderDependencies";
+import { IFieldConfig } from "../../types/IFieldConfig";
+import { circularDependencyConfigs } from "../__fixtures__/fieldConfigs";
 
 describe("DependencyGraphValidator", () => {
   describe("detectDependencyCycles", () => {
     it("returns empty array for acyclic dependency graph", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+      // Acyclic chain: trigger -> fieldA -> fieldB
+      // Each rule condition references a different (upstream) field.
+      const fields: Record<string, IFieldConfig> = {
+        trigger: {
+          type: "Dropdown",
+          label: "Trigger",
+          options: [{ value: "x", label: "X" }],
+          // No rules on trigger itself
+        },
         fieldA: {
-          dependentFields: ["fieldB"],
-          dependsOnFields: [],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
+          type: "Textbox",
+          label: "A",
+          rules: [
+            {
+              // Condition references trigger (upstream), effect targets fieldB (downstream)
+              when: { field: "trigger", operator: "equals", value: "x" },
+              then: { fields: { fieldB: { required: true } } },
+            },
+          ],
         },
         fieldB: {
-          dependentFields: ["fieldC"],
-          dependsOnFields: ["fieldA"],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
-        },
-        fieldC: {
-          dependentFields: [],
-          dependsOnFields: ["fieldB"],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
+          type: "Textbox",
+          label: "B",
         },
       };
 
-      const errors = detectDependencyCycles(fieldRules);
+      const errors = detectDependencyCycles(fields);
       expect(errors).toHaveLength(0);
     });
 
     it("detects a simple two-node cycle", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        fieldA: {
-          dependentFields: ["fieldB"],
-          dependsOnFields: ["fieldB"],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
-        },
-        fieldB: {
-          dependentFields: ["fieldA"],
-          dependsOnFields: ["fieldA"],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
-        },
-      };
-
-      const errors = detectDependencyCycles(fieldRules);
+      const errors = detectDependencyCycles(circularDependencyConfigs);
       expect(errors.length).toBeGreaterThan(0);
       expect(errors[0].type).toBe("dependency");
       expect(errors[0].fields).toContain("fieldA");
@@ -60,132 +49,109 @@ describe("DependencyGraphValidator", () => {
     });
 
     it("detects a three-node cycle", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+      const fields: Record<string, IFieldConfig> = {
         fieldA: {
-          dependentFields: ["fieldB"],
-          dependsOnFields: ["fieldC"],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
+          type: "Dropdown",
+          label: "A",
+          options: [{ value: "x", label: "X" }],
+          rules: [
+            {
+              when: { field: "fieldA", operator: "equals", value: "x" },
+              then: { fields: { fieldB: { required: true } } },
+            },
+          ],
         },
         fieldB: {
-          dependentFields: ["fieldC"],
-          dependsOnFields: ["fieldA"],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
+          type: "Dropdown",
+          label: "B",
+          options: [{ value: "y", label: "Y" }],
+          rules: [
+            {
+              when: { field: "fieldB", operator: "equals", value: "y" },
+              then: { fields: { fieldC: { required: true } } },
+            },
+          ],
         },
         fieldC: {
-          dependentFields: ["fieldA"],
-          dependsOnFields: ["fieldB"],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
+          type: "Dropdown",
+          label: "C",
+          options: [{ value: "z", label: "Z" }],
+          rules: [
+            {
+              when: { field: "fieldC", operator: "equals", value: "z" },
+              then: { fields: { fieldA: { required: true } } },
+            },
+          ],
         },
       };
 
-      const errors = detectDependencyCycles(fieldRules);
+      const errors = detectDependencyCycles(fields);
       expect(errors.length).toBeGreaterThan(0);
       expect(errors[0].fields).toHaveLength(3);
     });
 
-    it("returns empty array for fields with no dependencies", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        fieldA: {
-          dependentFields: [],
-          dependsOnFields: [],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
-        },
-        fieldB: {
-          dependentFields: [],
-          dependsOnFields: [],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
-        },
+    it("returns empty array for fields with no rules", () => {
+      const fields: Record<string, IFieldConfig> = {
+        fieldA: { type: "Textbox", label: "A" },
+        fieldB: { type: "Textbox", label: "B" },
       };
 
-      const errors = detectDependencyCycles(fieldRules);
+      const errors = detectDependencyCycles(fields);
       expect(errors).toHaveLength(0);
     });
 
-    it("ignores dependent fields that don't exist in the rules", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        fieldA: {
-          dependentFields: ["nonExistent"],
-          dependsOnFields: [],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
-        },
-      };
-
-      const errors = detectDependencyCycles(fieldRules);
-      expect(errors).toHaveLength(0);
-    });
-
-    it("detects combo dependency cycles", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        fieldA: {
-          dependentFields: [],
-          dependsOnFields: [],
-          comboDependentFields: ["fieldB"],
-          comboDependsOnFields: ["fieldB"],
-        },
-        fieldB: {
-          dependentFields: [],
-          dependsOnFields: [],
-          comboDependentFields: ["fieldA"],
-          comboDependsOnFields: ["fieldA"],
-        },
-      };
-
-      const errors = detectDependencyCycles(fieldRules);
-      expect(errors.length).toBeGreaterThan(0);
-      const comboError = errors.find(e => e.message.includes("combo"));
-      expect(comboError).toBeDefined();
-    });
-
-    it("handles empty fieldRules", () => {
+    it("handles empty fields object", () => {
       const errors = detectDependencyCycles({});
-      expect(errors).toHaveLength(0);
-    });
-
-    it("handles missing dependentFields arrays gracefully", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        fieldA: { component: "Textbox" },
-        fieldB: { component: "Textbox" },
-      };
-
-      const errors = detectDependencyCycles(fieldRules);
       expect(errors).toHaveLength(0);
     });
   });
 
-  describe("detectOrderDependencyCycles", () => {
-    it("returns empty array for simple array order deps", () => {
-      const orderDeps: OrderDependencyMap = {
-        value1: ["fieldA", "fieldB", "fieldC"],
-        value2: ["fieldC", "fieldB", "fieldA"],
-      };
-
-      const errors = detectOrderDependencyCycles(orderDeps, "rootField");
-      expect(errors).toHaveLength(0);
-    });
-
-    it("returns empty for nested but acyclic order deps", () => {
-      const orderDeps: OrderDependencyMap = {
-        A: {
-          subField: {
-            A1: ["f1", "f2"],
-            A2: ["f2", "f1"],
-          },
+  describe("detectSelfDependencies", () => {
+    it("detects a field that depends on and modifies itself via cross-field effects", () => {
+      const fields: Record<string, IFieldConfig> = {
+        fieldA: {
+          type: "Textbox",
+          label: "A",
+          rules: [
+            {
+              when: { field: "fieldA", operator: "equals", value: "x" },
+              then: { fields: { fieldA: { required: true } } },
+            },
+          ],
         },
-        B: ["f1", "f2"],
       };
 
-      const errors = detectOrderDependencyCycles(orderDeps, "rootField");
+      const errors = detectSelfDependencies(fields);
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].type).toBe("self");
+      expect(errors[0].fields).toContain("fieldA");
+    });
+
+    it("returns empty for rules that only modify self-state (no cross-field self-ref)", () => {
+      const fields: Record<string, IFieldConfig> = {
+        fieldA: {
+          type: "Textbox",
+          label: "A",
+          rules: [
+            {
+              when: { field: "fieldA", operator: "equals", value: "x" },
+              // This only modifies the field's own required/hidden — not via fields
+              then: { required: true },
+            },
+          ],
+        },
+      };
+
+      const errors = detectSelfDependencies(fields);
       expect(errors).toHaveLength(0);
     });
 
-    it("handles empty order deps", () => {
-      const errors = detectOrderDependencyCycles({}, "rootField");
+    it("returns empty for fields with no rules", () => {
+      const fields: Record<string, IFieldConfig> = {
+        fieldA: { type: "Textbox", label: "A" },
+      };
+
+      const errors = detectSelfDependencies(fields);
       expect(errors).toHaveLength(0);
     });
   });
@@ -202,64 +168,61 @@ describe("DependencyGraphValidator", () => {
     });
 
     it("logs warnings for cycles in dev mode", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        fieldA: {
-          dependentFields: ["fieldB"],
-          dependsOnFields: ["fieldB"],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
-        },
-        fieldB: {
-          dependentFields: ["fieldA"],
-          dependsOnFields: ["fieldA"],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
-        },
-      };
-
-      const errors = validateDependencyGraph(fieldRules);
+      const errors = validateDependencyGraph(circularDependencyConfigs);
       expect(errors.length).toBeGreaterThan(0);
       expect(warnSpy).toHaveBeenCalled();
       expect(warnSpy.mock.calls[0][0]).toContain("[dynamic-forms]");
     });
 
-    it("returns empty for valid dependency graph", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+    it("returns empty for valid dependency graph (non-self-referencing conditions)", () => {
+      // In v2, a rule whose condition references its own field creates a self-loop
+      // in the dependency graph. To test an acyclic graph, use conditions that
+      // reference a DIFFERENT field.
+      const fields: Record<string, IFieldConfig> = {
+        trigger: {
+          type: "Dropdown",
+          label: "Trigger",
+          options: [{ value: "x", label: "X" }],
+        },
         fieldA: {
-          dependentFields: ["fieldB"],
-          dependsOnFields: [],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
+          type: "Textbox",
+          label: "A",
+          rules: [
+            {
+              when: { field: "trigger", operator: "equals", value: "x" },
+              then: { fields: { fieldB: { required: true } } },
+            },
+          ],
         },
         fieldB: {
-          dependentFields: [],
-          dependsOnFields: ["fieldA"],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
+          type: "Textbox",
+          label: "B",
         },
       };
 
-      const errors = validateDependencyGraph(fieldRules);
+      const errors = validateDependencyGraph(fields);
       expect(errors).toHaveLength(0);
     });
 
-    it("detects self-referencing order dependency", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+    it("detects self-referencing rule (condition + effect on same field)", () => {
+      const fields: Record<string, IFieldConfig> = {
         fieldA: {
-          dependentFields: [],
-          dependsOnFields: [],
-          comboDependentFields: [],
-          comboDependsOnFields: [],
-          pivotalRootField: "fieldA",
-          orderDependentFields: ["fieldA"],
+          type: "Textbox",
+          label: "A",
+          rules: [
+            {
+              when: { field: "fieldA", operator: "equals", value: "x" },
+              then: { fields: { fieldA: { required: true } } },
+            },
+          ],
         },
       };
 
-      const errors = validateDependencyGraph(fieldRules);
+      const errors = validateDependencyGraph(fields);
       expect(errors.length).toBeGreaterThan(0);
-      const orderError = errors.find(e => e.type === "order");
-      expect(orderError).toBeDefined();
-      expect(orderError!.message).toContain("self-referencing");
+      const selfError = errors.find(e => e.type === "self");
+      expect(selfError).toBeDefined();
+      expect(selfError!.message).toContain("depends on and modifies itself");
     });
   });
 });

@@ -8,8 +8,7 @@ import {
   getStepIndex,
 } from "../../helpers/WizardHelper";
 import { IWizardStep } from "../../types/IWizardConfig";
-import { Dictionary } from "../../utils";
-import { IBusinessRule } from "../../types/IBusinessRule";
+import { IRuntimeFieldState } from "../../types/IRuntimeFieldState";
 
 describe("WizardHelper", () => {
   const baseSteps: IWizardStep[] = [
@@ -22,7 +21,7 @@ describe("WizardHelper", () => {
       id: "step2",
       title: "Address",
       fields: ["street", "city", "zip"],
-      visibleWhen: { fieldName: "hasAddress", values: ["true", "yes"] },
+      visibleWhen: { field: "hasAddress", operator: "in", value: ["true", "yes"] },
     },
     {
       id: "step3",
@@ -73,6 +72,35 @@ describe("WizardHelper", () => {
       const result = getVisibleSteps([], {});
       expect(result).toHaveLength(0);
     });
+
+    it("supports equals condition", () => {
+      const steps: IWizardStep[] = [
+        {
+          id: "conditional",
+          title: "Conditional",
+          fields: ["field1"],
+          visibleWhen: { field: "role", operator: "equals", value: "admin" },
+        },
+      ];
+
+      expect(getVisibleSteps(steps, { role: "admin" })).toHaveLength(1);
+      expect(getVisibleSteps(steps, { role: "user" })).toHaveLength(0);
+    });
+
+    it("supports isNotEmpty condition", () => {
+      const steps: IWizardStep[] = [
+        {
+          id: "conditional",
+          title: "Conditional",
+          fields: ["field1"],
+          visibleWhen: { field: "name", operator: "isNotEmpty" },
+        },
+      ];
+
+      expect(getVisibleSteps(steps, { name: "Alice" })).toHaveLength(1);
+      expect(getVisibleSteps(steps, { name: "" })).toHaveLength(0);
+      expect(getVisibleSteps(steps, {})).toHaveLength(0);
+    });
   });
 
   describe("getStepFields", () => {
@@ -82,42 +110,41 @@ describe("WizardHelper", () => {
       fields: ["name", "email", "phone"],
     };
 
-    it("returns all fields when no rules are provided", () => {
+    it("returns all fields when no fieldStates are provided", () => {
       const result = getStepFields(step);
       expect(result).toEqual(["name", "email", "phone"]);
     });
 
-    it("returns all fields when no rules are provided (undefined)", () => {
+    it("returns all fields when fieldStates is undefined", () => {
       const result = getStepFields(step, undefined);
       expect(result).toEqual(["name", "email", "phone"]);
     });
 
-    it("filters hidden fields based on business rules", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        name: { hidden: false, component: "Textbox" },
-        email: { hidden: true, component: "Textbox" },
-        phone: { hidden: false, component: "Textbox" },
+    it("filters hidden fields based on field states", () => {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
+        name: { hidden: false, type: "Textbox" },
+        email: { hidden: true, type: "Textbox" },
+        phone: { hidden: false, type: "Textbox" },
       };
-      const result = getStepFields(step, fieldRules);
+      const result = getStepFields(step, fieldStates);
       expect(result).toEqual(["name", "phone"]);
     });
 
     it("returns all fields when none are hidden", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        name: { hidden: false, component: "Textbox" },
-        email: { hidden: false, component: "Textbox" },
-        phone: { hidden: false, component: "Textbox" },
+      const fieldStates: Record<string, IRuntimeFieldState> = {
+        name: { hidden: false, type: "Textbox" },
+        email: { hidden: false, type: "Textbox" },
+        phone: { hidden: false, type: "Textbox" },
       };
-      const result = getStepFields(step, fieldRules);
+      const result = getStepFields(step, fieldStates);
       expect(result).toEqual(["name", "email", "phone"]);
     });
 
-    it("includes fields that have no matching rule entry", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        name: { hidden: false, component: "Textbox" },
+    it("includes fields that have no matching state entry", () => {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
+        name: { hidden: false, type: "Textbox" },
       };
-      // email and phone have no rule entry, so rule?.hidden is undefined -> not hidden
-      const result = getStepFields(step, fieldRules);
+      const result = getStepFields(step, fieldStates);
       expect(result).toEqual(["name", "email", "phone"]);
     });
   });

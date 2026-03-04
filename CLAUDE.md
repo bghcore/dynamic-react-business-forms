@@ -2,10 +2,10 @@
 
 ## Project Overview
 
-A React library for rendering complex, configuration-driven forms with a built-in business rules engine. Forms are defined as JSON configurations (field definitions, dependency rules, dropdown options, ordering) and the library handles rendering, validation, auto-save, and field interactions automatically.
+A React library for rendering complex, configuration-driven forms with a built-in rules engine. Forms are defined as a single `IFormConfig` JSON object (field definitions, rules with rich conditions, validation, ordering) and the library handles rendering, validation, auto-save, and field interactions automatically.
 
 Published as three npm packages:
-- `@bghcore/dynamic-forms-core` -- UI-library agnostic business rules engine and form orchestration (React + react-hook-form only)
+- `@bghcore/dynamic-forms-core` -- UI-library agnostic rules engine and form orchestration (React + react-hook-form only)
 - `@bghcore/dynamic-forms-fluent` -- Fluent UI v9 field component implementations
 - `@bghcore/dynamic-forms-mui` -- Material UI (MUI) field component implementations
 
@@ -14,16 +14,16 @@ Published as three npm packages:
 ### Rendering Pipeline
 
 ```
-Config Name
-  -> HookInlineForm (form state via react-hook-form, save with AbortController/retry)
-    -> initBusinessRules() -> business rules state
-    -> HookInlineFormFields (ordered field list)
-      -> HookFormErrorBoundary (per-field crash isolation)
-        -> HookRenderField (per field, useMemo for component resolution)
-          -> Looks up injectedFields[component] from context
-          -> Controller (react-hook-form integration, async validation wired)
-          -> HookFieldWrapper (label, error, status chrome, render props for theming)
-            -> React.cloneElement(InjectedFieldComponent, fieldProps)
+IFormConfig (v2)
+  -> DynamicForm (form state via react-hook-form, save with AbortController/retry)
+    -> evaluateAllRules() -> IRuntimeFormState
+    -> FormFields (ordered field list)
+      -> FormErrorBoundary (per-field crash isolation)
+        -> RenderField (per field, useMemo for component resolution)
+          -> Looks up injectedFields[type] from context
+          -> Controller (react-hook-form integration, unified validation)
+          -> FieldWrapper (label, error, status chrome, render props for theming)
+            -> React.cloneElement(InjectedFieldComponent, IFieldProps)
 ```
 
 ### Provider Hierarchy
@@ -31,46 +31,82 @@ Config Name
 Two React context providers must wrap the form tree (both memoized via useMemo):
 
 ```
-<BusinessRulesProvider>          -- Owns rule state via useReducer (memoized context value)
-  <InjectedHookFieldProvider>    -- Component injection registry (memoized context value)
-    <HookInlineForm>             -- Entry point
+<RulesEngineProvider>          -- Owns rule state via useReducer (memoized context value)
+  <InjectedFieldProvider>      -- Component injection registry (memoized context value)
+    <DynamicForm>              -- Entry point
 ```
 
-### Business Rules Engine
+### Rules Engine (v2)
 
-Rules are **declarative** -- defined as data in `IFieldConfig.dependencies`, not imperative code.
+Rules are **declarative** -- defined as `IRule[]` on each field config with rich conditions and effects.
+
+**Condition operators (15):** equals, notEquals, greaterThan, lessThan, greaterThanOrEqual, lessThanOrEqual, contains, notContains, startsWith, endsWith, in, notIn, isEmpty, isNotEmpty, matches
+
+**Logical operators:** and, or, not (composable condition trees)
 
 **Lifecycle:**
-1. **Init**: `IFieldConfig[]` + entity data -> `ProcessAllBusinessRules()` -> builds dependency graph + initial rule state
-2. **Validate**: `validateDependencyGraph()` checks for circular dependencies via Kahn's algorithm (dev-mode warnings)
-3. **Normalize**: `normalizeFieldConfig()` maps deprecated `isReadonly` -> `readOnly` with dev-mode warning
-4. **Trigger**: Field value change -> `processBusinessRule()`
-5. **Evaluate**: Revert previous rules -> re-evaluate dependents -> apply new rules -> combo (AND) rules -> dropdown deps -> order deps
-6. **Apply**: Dispatch to reducer -> React re-render -> fields read updated state
+1. **Init**: `IFormConfig` + entity data -> `evaluateAllRules()` -> builds dependency graph via topological sort + evaluates all rules
+2. **Validate**: `validateDependencyGraph()` checks for circular/self dependencies via Kahn's algorithm
+3. **Trigger**: Field value change -> `processFieldChange()`
+4. **Evaluate**: `evaluateAffectedFields()` -- only re-evaluates transitively affected fields (incremental)
+5. **Resolve**: Priority-based conflict resolution (higher priority rule wins)
+6. **Apply**: Dispatch to reducer -> React re-render -> fields read updated `IRuntimeFieldState`
 
-**Rule types supported:**
+**Rule effects supported:**
 - Required/Hidden/ReadOnly toggle
 - Component type swap
-- Validation rule changes (sync + async, wired into HookRenderField with AbortController)
-- Computed value functions
-- Dropdown option filtering
+- Validation rule replacement
+- Computed value expressions ($values.field, $fn.name(), $parent.field)
+- Dropdown option filtering/replacement
 - Field ordering
-- Combo (AND) multi-field conditions
+- Cross-field effects (one rule can affect multiple fields)
+- Conditional validation (validate only when condition met)
 - Confirm input modal trigger
 
 ### Component Injection System
 
-Fields are registered as a `Dictionary<JSX.Element>` via `InjectedHookFieldProvider`. `HookRenderField` looks up the component by string key and uses `React.cloneElement()` to pass standardized `IHookFieldSharedProps`. Consumers can override any built-in field or add custom ones.
+Fields are registered as a `Record<string, JSX.Element>` via `InjectedFieldProvider`. `RenderField` looks up the component by `type` string key and uses `React.cloneElement()` to pass standardized `IFieldProps`. Consumers can override any built-in field or add custom ones.
 
 ### Pluggable Registries
 
-Validation and value functions use pluggable registries instead of hardcoded switch/case:
-- `ValidationRegistry` -- 15 built-in sync validators + async validation support via `registerAsyncValidations()` (async now wired into HookRenderField with AbortController)
-- `ValueFunctionRegistry` -- register custom value functions via `registerValueFunctions()`
+- `ValidationRegistry` -- Unified `ValidatorFn` for sync, async, and cross-field validation. 14 built-in validators + `registerValidators()` for custom. Per-rule `when` condition, `debounceMs`, `async` flag.
+- `ValueFunctionRegistry` -- Value functions via `$fn.name()` syntax in computed expressions. `registerValueFunctions()` for custom.
 - `LocaleRegistry` -- i18n support via `registerLocale()` with partial overrides and English fallback
 - `formStateSerialization` -- Date-safe JSON round-trip for draft persistence
-- `jsonSchemaImport` -- Convert JSON Schema to `Dictionary<IFieldConfig>`
+- `jsonSchemaImport` -- Convert JSON Schema to `Record<string, IFieldConfig>`
+- `zodSchemaImport` -- Convert Zod schema to `Record<string, IFieldConfig>` (no zod dependency)
 - `lazyFieldRegistry` -- Create field registries with React.lazy for on-demand loading
+
+## Key Types
+
+```typescript
+interface IFormConfig {
+  version: 2;
+  fields: Record<string, IFieldConfig>;
+  fieldOrder?: string[];
+  wizard?: IWizardConfig;
+  settings?: IFormSettings;
+}
+
+interface IFieldConfig {
+  type: string;            // "Textbox", "Dropdown", "Toggle", etc.
+  label: string;
+  required?: boolean;
+  hidden?: boolean;
+  readOnly?: boolean;
+  defaultValue?: unknown;
+  computedValue?: string;  // "$values.qty * $values.price" or "$fn.setDate()"
+  options?: IOption[];      // { value, label, disabled?, group?, icon?, color? }
+  validate?: IValidationRule[];  // { name, params?, message?, async?, debounceMs?, when? }
+  rules?: IRule[];          // { when: ICondition, then: IFieldEffect, else?, priority? }
+  items?: Record<string, IFieldConfig>;  // field array items (full config)
+  config?: Record<string, unknown>;      // arbitrary metadata for field component
+}
+
+type ICondition = IFieldCondition | ILogicalCondition;
+// IFieldCondition: { field, operator, value? }
+// ILogicalCondition: { operator: "and"|"or"|"not", conditions: ICondition[] }
+```
 
 ## Key Directories
 
@@ -79,75 +115,75 @@ packages/
   core/                          -- @bghcore/dynamic-forms-core
     src/
       index.ts                   -- Public API barrel exports
-      constants.ts               -- Form constants + ComponentTypes (including FieldArray)
-      strings.ts                 -- i18n-aware string literals (getters over LocaleRegistry)
+      constants.ts               -- ComponentTypes, FormConstants
+      strings.ts                 -- FormStrings (i18n-aware, getters over LocaleRegistry)
       components/
-        HookInlineForm.tsx       -- Main form component (form state, auto-save with AbortController/retry, business rules)
-        HookInlineFormFields.tsx -- Field list rendering
-        HookRenderField.tsx      -- Per-field routing + Controller (useMemo, no extra render cycle)
-        HookFieldWrapper.tsx     -- Field chrome: label, error, status (React.memo, render props for theming)
-        HookConfirmInputsModal.tsx -- Confirmation dialog using native <dialog> (focus trap, Escape closes)
-        HookWizardForm.tsx       -- Multi-step wizard (render props for nav/headers, step announcements)
-        HookFieldArray.tsx       -- Repeating sections via react-hook-form useFieldArray
-        HookFormErrorBoundary.tsx -- Per-field error boundary (crash isolation, fallback render prop)
-        HookFormDevTools.tsx     -- Dev-only panel: business rules, form values, errors, dependency graph
+        HookInlineForm.tsx       -- DynamicForm (main form component)
+        HookInlineFormFields.tsx -- FormFields (field list rendering)
+        HookRenderField.tsx      -- RenderField (per-field routing + Controller)
+        HookFieldWrapper.tsx     -- FieldWrapper (label, error, status chrome)
+        HookConfirmInputsModal.tsx -- ConfirmInputsModal (native <dialog>, focus trap)
+        HookWizardForm.tsx       -- WizardForm (multi-step, render props)
+        HookFieldArray.tsx       -- FieldArray (react-hook-form useFieldArray)
+        HookFormErrorBoundary.tsx -- FormErrorBoundary (crash isolation)
+        HookFormDevTools.tsx     -- FormDevTools (dev panel: rules, values, errors, graph)
       helpers/
-        BusinessRulesHelper.ts   -- Rule evaluation logic (~700 lines, largest file)
-        FieldHelper.ts           -- Dropdown sorting utility
-        HookInlineFormHelper.ts  -- Form init, validation (sync+async), value functions, schema merging
-        ValidationRegistry.ts    -- 15 sync + async validator registry
-        ValueFunctionRegistry.ts -- Pluggable value function registry
-        DependencyGraphValidator.ts -- Circular dependency detection (Kahn's algorithm)
-        ConfigValidator.ts       -- Dev-mode config validation (deps, components, validators)
+        ConditionEvaluator.ts    -- evaluateCondition (15 operators + AND/OR/NOT)
+        RuleEngine.ts            -- buildDependencyGraph, evaluateAllRules, evaluateAffectedFields, topologicalSort
+        HookInlineFormHelper.ts  -- Form init, validation, computed values, field rendering
+        ValidationRegistry.ts    -- Unified ValidatorFn registry (sync+async+cross-field)
+        ValueFunctionRegistry.ts -- $fn.name() value function registry
+        ExpressionEngine.ts      -- $values, $fn, $parent, $root expression evaluation
+        DependencyGraphValidator.ts -- Cycle/self-dependency detection (Kahn's algorithm)
+        ConfigValidator.ts       -- Dev-mode config validation
         LocaleRegistry.ts        -- i18n: registerLocale(), getLocaleString(), resetLocale()
         WizardHelper.ts          -- getVisibleSteps, getStepFields, validateStepFields
+        FieldHelper.ts           -- SortOptions utility
+        RuleTracer.ts            -- Rule evaluation tracing/debugging
       types/
-        IBusinessRule.ts         -- Runtime rule state per field (includes asyncValidations)
-        IFieldConfig.ts          -- Static field config (includes asyncValidations, fieldArray)
-        IHookFieldSharedProps.ts -- Props contract for injected field components
-        ILocaleStrings.ts        -- ICoreLocaleStrings interface (~50 keys)
-        IWizardConfig.ts         -- IWizardStep, IWizardConfig, IWizardStepCondition
-        IFieldArrayConfig.ts     -- IFieldArrayConfig (itemFields, min/max, reorderable)
-        TypedFieldConfig.ts      -- defineFieldConfigs() type-safe field config builder
-        IBusinessRulesState.ts, IConfigBusinessRules.ts, IBusinessRuleAction.ts,
-        IBusinessRuleActionKeys.ts, IConfirmInputModalProps.ts, IExecuteValueFunction.ts,
-        IFieldToRender.ts, IHookPerson.ts, IOrderDependencies.ts, IDropdownOption.ts,
-        IHookInlineFormSharedProps.ts
+        IFormConfig.ts           -- IFormConfig, IFormSettings
+        IFieldConfig.ts          -- IFieldConfig (v2 schema)
+        IRule.ts                 -- IRule
+        ICondition.ts            -- ICondition, IFieldCondition, ILogicalCondition
+        IFieldEffect.ts          -- IFieldEffect
+        IOption.ts               -- IOption (value/label)
+        IValidationRule.ts       -- IValidationRule (unified)
+        IFieldProps.ts           -- IFieldProps<T> (injected field component props)
+        IRuntimeFieldState.ts    -- IRuntimeFieldState, IRuntimeFormState, IRulesEngineState
+        IRulesEngineAction.ts    -- RulesEngineActionType, action types
+        IWizardConfig.ts         -- IWizardStep, IWizardConfig (condition-based visibility)
+        ILocaleStrings.ts        -- ICoreLocaleStrings (~50 keys)
+        TypedFieldConfig.ts      -- defineFormConfig() type-safe builder
+        IConfirmInputModalProps.ts, IFieldToRender.ts, IHookInlineFormSharedProps.ts
       providers/
-        BusinessRulesProvider.tsx -- Business rules state (useCallback + useMemo memoized)
-        InjectedHookFieldProvider.tsx -- Component injection (useMemo memoized)
-        I*.ts                    -- Provider interfaces
+        BusinessRulesProvider.tsx -- RulesEngineProvider (useReducer + memoized)
+        InjectedHookFieldProvider.tsx -- InjectedFieldProvider (useMemo memoized)
       reducers/
-        BusinessRulesReducer.ts  -- useReducer reducer for business rules
+        BusinessRulesReducer.ts  -- useReducer reducer for rules engine state
       hooks/
-        useDraftPersistence.ts   -- Auto-save form state to localStorage, recover on mount
-        useBeforeUnload.ts       -- Browser warning on page leave with unsaved changes
+        useDraftPersistence.ts   -- Auto-save form state to localStorage
+        useBeforeUnload.ts       -- Browser warning on unsaved changes
       utils/
         index.ts                 -- isEmpty, isNull, deepCopy, Dictionary, etc.
-        formStateSerialization.ts -- serializeFormState/deserializeFormState (Date-safe JSON)
-        jsonSchemaImport.ts      -- jsonSchemaToFieldConfig (JSON Schema -> IFieldConfig)
-        zodSchemaImport.ts       -- zodSchemaToFieldConfig (Zod schema -> IFieldConfig, no zod dep)
-        lazyFieldRegistry.ts     -- createLazyFieldRegistry (React.lazy field loading)
+        formStateSerialization.ts -- Date-safe JSON round-trip
+        jsonSchemaImport.ts      -- JSON Schema -> IFieldConfig
+        zodSchemaImport.ts       -- Zod schema -> IFieldConfig (no zod dep)
+        lazyFieldRegistry.ts     -- React.lazy field loading
       styles.css                 -- Optional CSS custom properties for theming
-      __tests__/                 -- Vitest tests (513 tests, 24 files)
-        __fixtures__/            -- Shared test configs and entity data
-        helpers/                 -- Tests for all helper modules
-        reducers/                -- Tests for reducer
-    schemas/
-      field-config.schema.json   -- JSON Schema for IFieldConfig (IDE autocompletion)
-      wizard-config.schema.json  -- JSON Schema for IWizardConfig (IDE autocompletion)
+      __tests__/                 -- Vitest tests (478 tests, 24 files)
+        __fixtures__/            -- Shared test configs and entity data (v2 format)
 
   fluent/                        -- @bghcore/dynamic-forms-fluent
     src/
       index.ts, registry.ts, helpers.ts
       components/ (ReadOnlyText, StatusMessage, HookFormLoading, StatusDropdown/, DocumentLinks/)
-      fields/ (13 editable + 6 read-only)
+      fields/ (13 editable + 6 read-only, accept IFieldProps)
 
   mui/                           -- @bghcore/dynamic-forms-mui
     src/
       index.ts, registry.ts, helpers.ts
       components/ (ReadOnlyText, StatusMessage, HookFormLoading)
-      fields/ (13 editable + 6 read-only, using @mui/material)
+      fields/ (13 editable + 6 read-only, accept IFieldProps, using @mui/material)
 ```
 
 ## Build & Dev
@@ -163,7 +199,7 @@ npm run test:watch       # Run tests in watch mode
 npm run test:coverage    # Run tests with coverage report
 ```
 
-**Build output per package:** `dist/index.js` (ESM), `dist/index.cjs` (CJS), `dist/index.d.ts` (types)
+**Build output per package:** `dist/index.js` (CJS), `dist/index.mjs` (ESM), `dist/index.d.ts` (types)
 
 **Monorepo:** npm workspaces with `packages/core`, `packages/fluent`, `packages/mui`
 
@@ -174,22 +210,19 @@ npm run test:coverage    # Run tests with coverage report
 - **Fluent UI v9** (`@fluentui/react-components`) for UI components (fluent package)
 - **MUI v5/v6** (`@mui/material`) for UI components (mui package)
 - **TypeScript** with `strict: true`
-- **Vitest** for testing (513 tests across 24 files, 80%+ coverage on core helpers)
+- **Vitest** for testing (478 tests across 24 files)
 - **tsup** for bundling (CJS + ESM + .d.ts)
 - **npm workspaces** for monorepo management
 
-## Known Issues
-
-- `isReadonly` is deprecated in favor of `readOnly` (dev-mode warning emitted via `normalizeFieldConfig`)
-- `CombineBusinessRules` is now immutable (fixed in v1.4.0)
-- Hardcoded English strings in some older code paths (mostly migrated to `LocaleRegistry`)
-
 ## Coding Conventions
 
-- Components use `Hook` prefix (e.g., `HookTextbox`, `HookDropdown`)
+- Core components: `DynamicForm`, `FormFields`, `RenderField`, `FieldWrapper`, `WizardForm`, `FieldArray`
+- Adapter field components use `Hook` prefix (e.g., `HookTextbox`, `HookDropdown`) -- kept for file naming
 - Read-only variants in `fields/readonly/` with `HookReadOnly` prefix
-- Interfaces use `I` prefix (e.g., `IFieldConfig`, `IBusinessRule`)
+- Interfaces use `I` prefix (e.g., `IFieldConfig`, `IRuntimeFieldState`)
 - Providers export both the provider component and a `Use*Context` hook
-- Field components receive `IHookFieldSharedProps<T>` via `React.cloneElement`
-- Business rule actions follow Redux action pattern (type enum + payload)
+- Field components receive `IFieldProps<T>` via `React.cloneElement`
+- Rules engine actions follow Redux pattern (type enum + payload)
 - All user-facing strings resolve through `LocaleRegistry` for i18n support
+- Options use `{ value, label }` (not `{ key, text }`)
+- Field config uses `type` (not `component`), `options` (not `dropdownOptions`), `config` (not `meta`), `validate` (not `validations`)

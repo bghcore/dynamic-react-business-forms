@@ -1,10 +1,10 @@
-import { IHookFieldSharedProps, HookInlineFormStrings } from "@bghcore/dynamic-forms-core";
+import { IFieldProps, FormStrings } from "@bghcore/dynamic-forms-core";
 import { Input, Button } from "@fluentui/react-components";
 import { DismissRegular } from "@fluentui/react-icons";
 import React from "react";
 import { FieldClassName, GetFieldDataTestId, formatDateTime } from "../helpers";
 
-const HookDateControl = (props: IHookFieldSharedProps<{}>) => {
+const HookDateControl = (props: IFieldProps<{}>) => {
   const { fieldName, programName, entityType, entityId, value, readOnly, error, setFieldValue } = props;
 
   const onChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -41,8 +41,8 @@ const HookDateControl = (props: IHookFieldSharedProps<{}>) => {
         appearance="subtle"
         icon={<DismissRegular />}
         onClick={onClearDate}
-        title={HookInlineFormStrings.clickToClear}
-        aria-label={`${fieldName} ${HookInlineFormStrings.clear}`}
+        title={FormStrings.clickToClear}
+        aria-label={`${fieldName} ${FormStrings.clear}`}
       />
     </div>
   );

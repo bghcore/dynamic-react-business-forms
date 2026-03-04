@@ -1,4 +1,4 @@
-import { HookInlineFormStrings } from "@bghcore/dynamic-forms-core";
+import { FormStrings } from "@bghcore/dynamic-forms-core";
 import { CircularProgress } from "@mui/material";
 import React from "react";
 import { FieldError } from "react-hook-form";
@@ -26,14 +26,14 @@ export const StatusMessage: React.FunctionComponent<IStatusMessageProps> = (prop
         <>
           <span className="warning-icon" style={{ color: "#ed6c02", fontSize: "16px" }}>&#9888;</span>
           <span className="warning-message" id={id} role="alert">
-            {HookInlineFormStrings.autoSavePending} ({errorCount} {HookInlineFormStrings.remaining})
+            {FormStrings.autoSavePending} ({errorCount} {FormStrings.remaining})
           </span>
         </>
       ) : saving ? (
         <>
           <CircularProgress size={16} />
           <span className="save-message" id={id} role="alert">
-            {HookInlineFormStrings.saving}
+            {FormStrings.saving}
           </span>
         </>
       ) : null}

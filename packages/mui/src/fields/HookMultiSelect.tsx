@@ -1,12 +1,12 @@
-import { IHookFieldSharedProps } from "@bghcore/dynamic-forms-core";
+import { IFieldProps } from "@bghcore/dynamic-forms-core";
 import { FormControl, Select, MenuItem, Chip, Box } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material";
 import React from "react";
 import { useFormContext } from "react-hook-form";
 import { FieldClassName, GetFieldDataTestId } from "../helpers";
 
-const HookMultiSelect = (props: IHookFieldSharedProps<{}>) => {
-  const { fieldName, programName, entityType, entityId, value, readOnly, error, dropdownOptions, setFieldValue } = props;
+const HookMultiSelect = (props: IFieldProps<{}>) => {
+  const { fieldName, programName, entityType, entityId, value, readOnly, error, options, setFieldValue } = props;
 
   const { watch } = useFormContext();
   const selectedOptions = (watch(`${fieldName}` as const) as string[]) ?? [];
@@ -42,9 +42,9 @@ const HookMultiSelect = (props: IHookFieldSharedProps<{}>) => {
         )}
         data-testid={GetFieldDataTestId(fieldName, programName, entityType, entityId)}
       >
-        {dropdownOptions?.map(option => (
-          <MenuItem key={String(option.key)} value={String(option.key)} disabled={option.disabled}>
-            {option.text}
+        {options?.map(option => (
+          <MenuItem key={String(option.value)} value={String(option.value)} disabled={option.disabled}>
+            {option.label}
           </MenuItem>
         ))}
       </Select>

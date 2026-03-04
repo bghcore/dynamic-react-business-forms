@@ -1,133 +1,107 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
-  registerAsyncValidations,
-  getAsyncValidation,
-  getAsyncValidationRegistry,
-  AsyncValidationFunction,
+  registerValidators,
+  getValidator,
+  resetValidatorRegistry,
+  runValidations,
+  ValidatorFn,
+  IValidationContext,
 } from "../../helpers/ValidationRegistry";
-import { CheckAsyncFieldValidationRules } from "../../helpers/HookInlineFormHelper";
+import { IValidationRule } from "../../types/IValidationRule";
 
-describe("Async Validation", () => {
-  describe("registerAsyncValidations", () => {
-    it("registers async validators", () => {
-      const asyncFn: AsyncValidationFunction = async (value) =>
+describe("Async Validation (unified registry)", () => {
+  beforeEach(() => {
+    resetValidatorRegistry();
+  });
+
+  describe("registerValidators with async functions", () => {
+    it("registers async validators that can be retrieved", () => {
+      const asyncFn: ValidatorFn = async (value) =>
         value === "bad" ? "Async error" : undefined;
 
-      registerAsyncValidations({ AsyncCustomValidator: asyncFn });
+      registerValidators({ AsyncCustomValidator: asyncFn });
 
-      const retrieved = getAsyncValidation("AsyncCustomValidator");
+      const retrieved = getValidator("AsyncCustomValidator");
       expect(retrieved).toBeDefined();
       expect(retrieved).toBe(asyncFn);
     });
   });
 
-  describe("getAsyncValidation", () => {
-    it("returns registered function", async () => {
-      const asyncFn: AsyncValidationFunction = async (value) =>
+  describe("getValidator with async validator", () => {
+    it("returns registered async function", async () => {
+      const asyncFn: ValidatorFn = async (value) =>
         value === "invalid" ? "Invalid value" : undefined;
 
-      registerAsyncValidations({ AsyncGetTest: asyncFn });
+      registerValidators({ AsyncGetTest: asyncFn });
 
-      const retrieved = getAsyncValidation("AsyncGetTest");
+      const retrieved = getValidator("AsyncGetTest");
       expect(retrieved).toBeDefined();
-      expect(await retrieved!("invalid")).toBe("Invalid value");
-      expect(await retrieved!("valid")).toBeUndefined();
+      const ctx: IValidationContext = { fieldName: "test", values: {} };
+      expect(await retrieved!("invalid", undefined, ctx)).toBe("Invalid value");
+      expect(await retrieved!("valid", undefined, ctx)).toBeUndefined();
     });
 
     it("returns undefined for unknown", () => {
-      const result = getAsyncValidation("NonExistentAsyncValidator");
+      const result = getValidator("NonExistentAsyncValidator");
       expect(result).toBeUndefined();
     });
   });
 
-  describe("getAsyncValidationRegistry", () => {
-    it("returns all registered async validators", () => {
-      const asyncFn1: AsyncValidationFunction = async () => undefined;
-      const asyncFn2: AsyncValidationFunction = async () => undefined;
-
-      registerAsyncValidations({
-        AsyncRegistryTest1: asyncFn1,
-        AsyncRegistryTest2: asyncFn2,
-      });
-
-      const registry = getAsyncValidationRegistry();
-      expect(registry).toHaveProperty("AsyncRegistryTest1");
-      expect(registry).toHaveProperty("AsyncRegistryTest2");
-    });
-
-    it("returns a copy (mutating it does not affect the internal registry)", () => {
-      const asyncFn: AsyncValidationFunction = async () => "original";
-      registerAsyncValidations({ AsyncCopyTest: asyncFn });
-
-      const registry = getAsyncValidationRegistry();
-      registry["AsyncCopyTest"] = (async () => "hacked") as AsyncValidationFunction;
-
-      const fresh = getAsyncValidation("AsyncCopyTest");
-      expect(fresh).toBe(asyncFn);
-    });
-  });
-
-  describe("CheckAsyncFieldValidationRules", () => {
+  describe("runValidations with async rules", () => {
     it("runs async validators in sequence", async () => {
       const callOrder: string[] = [];
 
-      const asyncFn1: AsyncValidationFunction = async () => {
-        callOrder.push("first");
-        return undefined;
-      };
-      const asyncFn2: AsyncValidationFunction = async () => {
-        callOrder.push("second");
-        return undefined;
-      };
-
-      registerAsyncValidations({
-        AsyncSequence1: asyncFn1,
-        AsyncSequence2: asyncFn2,
+      registerValidators({
+        AsyncSequence1: async () => {
+          callOrder.push("first");
+          return undefined;
+        },
+        AsyncSequence2: async () => {
+          callOrder.push("second");
+          return undefined;
+        },
       });
 
-      await CheckAsyncFieldValidationRules(
-        "test",
-        { field1: "test" },
-        ["AsyncSequence1", "AsyncSequence2"]
-      );
+      const rules: IValidationRule[] = [
+        { name: "AsyncSequence1", async: true },
+        { name: "AsyncSequence2", async: true },
+      ];
+      const ctx: IValidationContext = { fieldName: "test", values: { field1: "test" } };
 
+      await runValidations("test", rules, ctx);
       expect(callOrder).toEqual(["first", "second"]);
     });
 
     it("returns first error found", async () => {
-      const asyncFn1: AsyncValidationFunction = async () => "First error";
-      const asyncFn2: AsyncValidationFunction = async () => "Second error";
-
-      registerAsyncValidations({
-        AsyncFirstError1: asyncFn1,
-        AsyncFirstError2: asyncFn2,
+      registerValidators({
+        AsyncFirstError1: async () => "First error",
+        AsyncFirstError2: async () => "Second error",
       });
 
-      const result = await CheckAsyncFieldValidationRules(
-        "test",
-        { field1: "test" },
-        ["AsyncFirstError1", "AsyncFirstError2"]
-      );
+      const rules: IValidationRule[] = [
+        { name: "AsyncFirstError1", async: true },
+        { name: "AsyncFirstError2", async: true },
+      ];
+      const ctx: IValidationContext = { fieldName: "test", values: {} };
 
+      const result = await runValidations("test", rules, ctx);
       expect(result).toBe("First error");
     });
 
     it("respects AbortSignal cancellation", async () => {
       const controller = new AbortController();
-      const asyncFn: AsyncValidationFunction = async () => "Should not reach";
 
-      registerAsyncValidations({ AsyncAbortTest: asyncFn });
+      registerValidators({
+        AsyncAbortTest: async () => "Should not reach",
+      });
 
       // Abort before calling
       controller.abort();
 
-      const result = await CheckAsyncFieldValidationRules(
-        "test",
-        { field1: "test" },
-        ["AsyncAbortTest"],
-        controller.signal
-      );
+      const rules: IValidationRule[] = [{ name: "AsyncAbortTest", async: true }];
+      const ctx: IValidationContext = { fieldName: "test", values: {}, signal: controller.signal };
 
+      const result = await runValidations("test", rules, ctx);
       expect(result).toBeUndefined();
     });
 
@@ -135,79 +109,77 @@ describe("Async Validation", () => {
       const controller = new AbortController();
       const callOrder: string[] = [];
 
-      const asyncFn1: AsyncValidationFunction = async () => {
-        callOrder.push("first");
-        controller.abort(); // Abort after first validator runs
-        return undefined;
-      };
-      const asyncFn2: AsyncValidationFunction = async () => {
-        callOrder.push("second");
-        return "Error from second";
-      };
-
-      registerAsyncValidations({
-        AsyncAbortBetween1: asyncFn1,
-        AsyncAbortBetween2: asyncFn2,
+      registerValidators({
+        AsyncAbortBetween1: async () => {
+          callOrder.push("first");
+          controller.abort(); // Abort after first validator runs
+          return undefined;
+        },
+        AsyncAbortBetween2: async () => {
+          callOrder.push("second");
+          return "Error from second";
+        },
       });
 
-      const result = await CheckAsyncFieldValidationRules(
-        "test",
-        { field1: "test" },
-        ["AsyncAbortBetween1", "AsyncAbortBetween2"],
-        controller.signal
-      );
+      const rules: IValidationRule[] = [
+        { name: "AsyncAbortBetween1", async: true },
+        { name: "AsyncAbortBetween2", async: true },
+      ];
+      const ctx: IValidationContext = { fieldName: "test", values: {}, signal: controller.signal };
 
+      const result = await runValidations("test", rules, ctx);
       expect(result).toBeUndefined();
       expect(callOrder).toEqual(["first"]);
     });
 
     it("returns undefined when all pass", async () => {
-      const asyncFn1: AsyncValidationFunction = async () => undefined;
-      const asyncFn2: AsyncValidationFunction = async () => undefined;
-
-      registerAsyncValidations({
-        AsyncAllPass1: asyncFn1,
-        AsyncAllPass2: asyncFn2,
+      registerValidators({
+        AsyncAllPass1: async () => undefined,
+        AsyncAllPass2: async () => undefined,
       });
 
-      const result = await CheckAsyncFieldValidationRules(
-        "test",
-        { field1: "test" },
-        ["AsyncAllPass1", "AsyncAllPass2"]
-      );
+      const rules: IValidationRule[] = [
+        { name: "AsyncAllPass1", async: true },
+        { name: "AsyncAllPass2", async: true },
+      ];
+      const ctx: IValidationContext = { fieldName: "test", values: {} };
 
+      const result = await runValidations("test", rules, ctx);
       expect(result).toBeUndefined();
     });
 
     it("skips unknown validator names", async () => {
-      const asyncFn: AsyncValidationFunction = async () => undefined;
+      registerValidators({
+        AsyncSkipUnknown: async () => undefined,
+      });
 
-      registerAsyncValidations({ AsyncSkipUnknown: asyncFn });
+      const rules: IValidationRule[] = [
+        { name: "NonExistentValidator", async: true },
+        { name: "AsyncSkipUnknown", async: true },
+      ];
+      const ctx: IValidationContext = { fieldName: "test", values: {} };
 
-      const result = await CheckAsyncFieldValidationRules(
-        "test",
-        { field1: "test" },
-        ["NonExistentValidator", "AsyncSkipUnknown"]
-      );
-
+      const result = await runValidations("test", rules, ctx);
       expect(result).toBeUndefined();
     });
 
-    it("passes value, entityData, and signal to the validator", async () => {
-      const spyFn = vi.fn<AsyncValidationFunction>().mockResolvedValue(undefined);
-      registerAsyncValidations({ AsyncSpyTest: spyFn });
+    it("passes value, params, and context to the validator", async () => {
+      const spyFn = vi.fn<ValidatorFn>().mockResolvedValue(undefined);
+      registerValidators({ AsyncSpyTest: spyFn });
 
-      const entityData = { field1: "test" };
       const controller = new AbortController();
+      const rules: IValidationRule[] = [
+        { name: "AsyncSpyTest", async: true, params: { custom: "param" } },
+      ];
+      const ctx: IValidationContext = {
+        fieldName: "testField",
+        values: { field1: "test" },
+        signal: controller.signal,
+      };
 
-      await CheckAsyncFieldValidationRules(
-        "myValue",
-        entityData,
-        ["AsyncSpyTest"],
-        controller.signal
-      );
+      await runValidations("myValue", rules, ctx);
 
-      expect(spyFn).toHaveBeenCalledWith("myValue", entityData, controller.signal);
+      expect(spyFn).toHaveBeenCalledWith("myValue", { custom: "param" }, ctx);
     });
   });
 });

@@ -1,10 +1,10 @@
-import { IHookFieldSharedProps, convertBooleanToYesOrNoText } from "@bghcore/dynamic-forms-core";
+import { IFieldProps, convertBooleanToYesOrNoText } from "@bghcore/dynamic-forms-core";
 import { Switch, FormControlLabel } from "@mui/material";
 import React from "react";
 import { ReadOnlyText } from "../components/ReadOnlyText";
 import { GetFieldDataTestId } from "../helpers";
 
-const HookToggle = (props: IHookFieldSharedProps<{}>) => {
+const HookToggle = (props: IFieldProps<{}>) => {
   const { fieldName, programName, entityType, entityId, value, readOnly, setFieldValue } = props;
 
   const onChange = (_: React.ChangeEvent<HTMLInputElement>, checked: boolean) => {

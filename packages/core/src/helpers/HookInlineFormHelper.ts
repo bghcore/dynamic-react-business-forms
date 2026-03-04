@@ -1,16 +1,14 @@
-import { Dictionary, IEntityData, SubEntityType, isEmpty, isNull, isStringEmpty, deepCopy, setDropdownValue, sortDropdownOptions } from "../utils";
+import { IEntityData, SubEntityType, isEmpty, isNull, isStringEmpty } from "../utils";
 import { UseFormSetValue } from "react-hook-form";
-import { HookInlineFormConstants } from "../constants";
-import { IBusinessRule } from "../types/IBusinessRule";
-import { IConfigBusinessRules } from "../types/IConfigBusinessRules";
+import { IFieldConfig } from "../types/IFieldConfig";
 import { IConfirmInputModalProps } from "../types/IConfirmInputModalProps";
-import { IExecuteValueFunction } from "../types/IExecuteValueFunction";
-import { IDeprecatedOption, IFieldConfig } from "../types/IFieldConfig";
 import { IFieldToRender } from "../types/IFieldToRender";
-import { IDropdownOption } from "../types/IDropdownOption";
-import { GetDefaultBusinessRules, ProcessDropdownOptions } from "./BusinessRulesHelper";
-import { getValidation, getAsyncValidation, getCrossFieldValidation } from "./ValidationRegistry";
+import { IRuntimeFieldState, IRuntimeFormState } from "../types/IRuntimeFieldState";
+import { IOption } from "../types/IOption";
+import { evaluateAllRules } from "./RuleEngine";
+import { runSyncValidations, runValidations, IValidationContext } from "./ValidationRegistry";
 import { executeValueFunction } from "./ValueFunctionRegistry";
+import { evaluateExpression } from "./ExpressionEngine";
 
 export const GetChildEntity = (
   entityId?: string,
@@ -23,26 +21,26 @@ export const GetChildEntity = (
   return childValues?.length === 1 ? { ...childValues[0], Parent: { ...entity } } : undefined;
 };
 
-export const IsExpandVisible = (businessRules: Dictionary<IBusinessRule>, expandCutoffCount?: number): boolean => {
+export const IsExpandVisible = (
+  fieldStates: Record<string, IRuntimeFieldState>,
+  expandCutoffCount: number = 12
+): boolean => {
   let count = 0;
-  Object.keys(businessRules).forEach(field => {
-    if (!businessRules[field].hidden) {
-      count += 1;
-    }
+  Object.keys(fieldStates).forEach(field => {
+    if (!fieldStates[field].hidden) count += 1;
   });
-
-  return expandCutoffCount ? count > expandCutoffCount : count > HookInlineFormConstants.defaultExpandCutoffCount;
+  return count > expandCutoffCount;
 };
 
 export const GetConfirmInputModalProps = (
   dirtyFieldNames: string[],
-  fieldRules: Dictionary<IBusinessRule>
+  fieldStates: Record<string, IRuntimeFieldState>
 ): IConfirmInputModalProps => {
   const confirmInputModalProps: IConfirmInputModalProps = {};
 
   dirtyFieldNames?.forEach(fieldName => {
-    fieldRules[fieldName]?.dependentFields?.forEach(dependentFieldName => {
-      if (fieldRules[dependentFieldName].confirmInput) {
+    fieldStates[fieldName]?.dependentFields?.forEach(dependentFieldName => {
+      if (fieldStates[dependentFieldName]?.confirmInput) {
         if (confirmInputModalProps.confirmInputsTriggeredBy === undefined) {
           confirmInputModalProps.confirmInputsTriggeredBy = fieldName;
           confirmInputModalProps.dependentFieldNames = [dependentFieldName];
@@ -62,250 +60,187 @@ export const GetConfirmInputModalProps = (
   return confirmInputModalProps;
 };
 
-export const GetValueFunctionsOnDirtyFields = (
+interface IExecuteComputedValue {
+  fieldName: string;
+  expression: string;
+}
+
+export const GetComputedValuesOnDirtyFields = (
   dirtyFieldNames: string[],
-  fieldRules: Dictionary<IBusinessRule>
-): IExecuteValueFunction[] => {
-  const valueFunctions: IExecuteValueFunction[] = [];
+  fieldStates: Record<string, IRuntimeFieldState>
+): IExecuteComputedValue[] => {
+  const computedValues: IExecuteComputedValue[] = [];
 
   dirtyFieldNames?.forEach(fieldName => {
-    fieldRules[fieldName]?.dependentFields?.forEach(dependentFieldName => {
+    fieldStates[fieldName]?.dependentFields?.forEach(dependentFieldName => {
+      const state = fieldStates[dependentFieldName];
       if (
-        fieldRules[dependentFieldName].valueFunction &&
-        !isStringEmpty(fieldRules[dependentFieldName].valueFunction) &&
-        !fieldRules[dependentFieldName].onlyOnCreate &&
-        dirtyFieldNames.indexOf(dependentFieldName) === -1
+        state?.computedValue &&
+        !state.computeOnCreateOnly &&
+        !dirtyFieldNames.includes(dependentFieldName)
       ) {
-        valueFunctions.push({
+        computedValues.push({
           fieldName: dependentFieldName,
-          valueFunction: fieldRules[dependentFieldName].valueFunction
+          expression: state.computedValue,
         });
       }
     });
   });
 
-  return valueFunctions;
+  return computedValues;
 };
 
-export const GetValueFunctionsOnCreate = (fieldRules: Dictionary<IBusinessRule>): IExecuteValueFunction[] => {
-  const valueFunctions: IExecuteValueFunction[] = [];
+export const GetComputedValuesOnCreate = (
+  fieldStates: Record<string, IRuntimeFieldState>
+): IExecuteComputedValue[] => {
+  const computedValues: IExecuteComputedValue[] = [];
 
-  Object.keys(fieldRules).forEach(fieldName => {
-    if (
-      fieldRules[fieldName].valueFunction &&
-      !isStringEmpty(fieldRules[fieldName].valueFunction) &&
-      fieldRules[fieldName].onlyOnCreate
-    ) {
-      valueFunctions.push({
+  Object.keys(fieldStates).forEach(fieldName => {
+    const state = fieldStates[fieldName];
+    if (state.computedValue && state.computeOnCreateOnly) {
+      computedValues.push({
         fieldName,
-        valueFunction: fieldRules[fieldName].valueFunction
+        expression: state.computedValue,
       });
     }
   });
 
-  return valueFunctions;
+  return computedValues;
 };
 
-export const ExecuteValueFunction = (
-  fieldName: string,
-  valueFunctionName: string,
-  fieldValue?: SubEntityType,
+export const ExecuteComputedValue = (
+  expression: string,
+  values: IEntityData,
+  fieldName?: string,
   parentEntity?: IEntityData,
-  userId?: string
+  currentUserId?: string
 ): SubEntityType => {
-  return executeValueFunction(fieldName, valueFunctionName, fieldValue, parentEntity, userId);
+  return evaluateExpression(expression, values, fieldName, parentEntity, currentUserId) as SubEntityType;
 };
 
 export const CheckFieldValidationRules = (
   value: unknown,
+  fieldName: string,
   entityData: IEntityData,
-  validations: string[]
+  state: IRuntimeFieldState
 ): string | undefined => {
-  let errorMessage = "";
-
-  validations.forEach(validation => {
-    const validationFn = getValidation(validation);
-    const validationResult = validationFn ? validationFn(value, entityData) : undefined;
-    if (validationResult && !errorMessage) {
-      errorMessage = `${validationResult}`;
-    } else if (validationResult) {
-      errorMessage += ` & ${validationResult}`;
-    }
-  });
-
-  return errorMessage ? errorMessage : undefined;
+  if (!state.validate || state.validate.length === 0) return undefined;
+  const context: IValidationContext = { fieldName, values: entityData };
+  return runSyncValidations(value, state.validate, context);
 };
 
 export const CheckAsyncFieldValidationRules = async (
   value: unknown,
+  fieldName: string,
   entityData: IEntityData,
-  asyncValidations: string[],
+  state: IRuntimeFieldState,
   signal?: AbortSignal
 ): Promise<string | undefined> => {
-  for (const validationName of asyncValidations) {
-    if (signal?.aborted) return undefined;
-    const validationFn = getAsyncValidation(validationName);
-    if (validationFn) {
-      const result = await validationFn(value, entityData, signal);
-      if (result) return result;
-    }
-  }
-  return undefined;
+  if (!state.validate || state.validate.length === 0) return undefined;
+  const context: IValidationContext = { fieldName, values: entityData, signal };
+  return runValidations(value, state.validate, context);
 };
 
 export const CheckValidDropdownOptions = (
-  fieldRules: Dictionary<IBusinessRule>,
-  fieldConfigs: Dictionary<IFieldConfig>,
+  fieldStates: Record<string, IRuntimeFieldState>,
   formValues: IEntityData,
   setValue: UseFormSetValue<IEntityData>
 ) => {
-  if (!isEmpty(fieldRules) && !isEmpty(formValues)) {
-    Object.keys(fieldRules).forEach(fieldName => {
-      const { component, dropdownOptions } = fieldRules[fieldName];
-      if (
-        (component === HookInlineFormConstants.dropdown || component === HookInlineFormConstants.statusDropdown) &&
-        !isNull(formValues[fieldName]) &&
-        dropdownOptions?.findIndex(option => option.key === formValues[fieldName]) === -1 &&
-        !CheckIsDeprecated(formValues[fieldName] as string, fieldConfigs[fieldName])
-      ) {
-        setValue(`${fieldName}` as const, null, { shouldDirty: false });
-      } else if (component === HookInlineFormConstants.multiselect && !isNull(formValues[fieldName])) {
-        const filteredValues = (formValues[fieldName] as string[])?.filter(
-          option =>
-            dropdownOptions?.map(dropdownOption => dropdownOption.key).includes(option) &&
-            !CheckIsDeprecated(option, fieldConfigs[fieldName])
-        );
-        if (filteredValues?.length !== (formValues[fieldName] as string[]).length) {
-          setValue(`${fieldName}` as const, filteredValues, { shouldDirty: false });
-        }
-      }
-    });
-  }
-};
+  if (isEmpty(fieldStates) || isEmpty(formValues)) return;
 
-export const CheckDeprecatedDropdownOptions = (
-  fieldConfig: IFieldConfig,
-  dropdownOptions: IDropdownOption[],
-  fieldValue?: unknown
-): IDropdownOption[] => {
-  const deprecatedOptions: IDropdownOption[] = [];
-  const { component } = fieldConfig;
-  if (
-    (component === HookInlineFormConstants.dropdown || component === HookInlineFormConstants.statusDropdown) &&
-    dropdownOptions?.findIndex(option => option.key === (fieldValue as string)) === -1 &&
-    CheckIsDeprecated(fieldValue as string, fieldConfig)
-  ) {
-    deprecatedOptions.push({
-      ...setDropdownValue(fieldValue as string),
-      disabled: true,
-      data: {
-        iconName: "Info",
-        iconTitle: "This value has been Deprecated"
+  Object.keys(fieldStates).forEach(fieldName => {
+    const { type, options } = fieldStates[fieldName];
+    if (
+      (type === "Dropdown" || type === "StatusDropdown") &&
+      !isNull(formValues[fieldName]) &&
+      options &&
+      options.findIndex(o => String(o.value) === String(formValues[fieldName])) === -1
+    ) {
+      setValue(`${fieldName}` as const, null, { shouldDirty: false });
+    } else if (type === "Multiselect" && !isNull(formValues[fieldName]) && options) {
+      const filteredValues = (formValues[fieldName] as string[])?.filter(
+        val => options.some(o => String(o.value) === val)
+      );
+      if (filteredValues?.length !== (formValues[fieldName] as string[])?.length) {
+        setValue(`${fieldName}` as const, filteredValues, { shouldDirty: false });
       }
-    });
-  } else if (component === HookInlineFormConstants.multiselect) {
-    (fieldValue as string[])?.forEach(selectedOption => {
-      if (CheckIsDeprecated(selectedOption, fieldConfig)) {
-        deprecatedOptions.push({
-          ...setDropdownValue(selectedOption),
-          disabled: true,
-          data: {
-            iconName: "Info",
-            iconTitle: "This value has been Deprecated"
-          }
-        });
-      }
-    });
-  }
-  return deprecatedOptions;
+    }
+  });
 };
 
 export const CheckDefaultValues = (
-  fieldRules: Dictionary<IBusinessRule>,
+  fieldStates: Record<string, IRuntimeFieldState>,
   formValues: IEntityData,
   setValue: UseFormSetValue<IEntityData>
 ) => {
-  if (isEmpty(fieldRules) || isEmpty(formValues)) {
-    return;
-  }
-  Object.keys(fieldRules).forEach(fieldName => {
-    const { defaultValue, hidden } = fieldRules[fieldName];
+  if (isEmpty(fieldStates) || isEmpty(formValues)) return;
+
+  Object.keys(fieldStates).forEach(fieldName => {
+    const { defaultValue, hidden } = fieldStates[fieldName];
     if (!isNull(defaultValue) && isNull(formValues[fieldName]) && !hidden) {
       setValue(`${fieldName}` as const, defaultValue, { shouldDirty: true });
     }
   });
 };
 
-export const CheckIsDeprecated = (entityValue: string, fieldConfig: IFieldConfig) => {
-  const items = fieldConfig?.deprecatedDropdownOptions?.map((item: IDeprecatedOption) => item.oldVal);
-  return items?.includes(entityValue);
-};
-
-export const InitOnCreateBusinessRules = (
+export const InitOnCreateFormState = (
   configName: string,
-  fieldConfigs: Dictionary<IFieldConfig>,
+  fields: Record<string, IFieldConfig>,
   defaultValues: IEntityData,
   parentEntity: IEntityData,
   userId: string,
   setValue: UseFormSetValue<IEntityData>,
-  initBusinessRules: (
+  initFormState: (
     configName: string,
     defaultValues: IEntityData,
-    fieldConfigs: Dictionary<IFieldConfig>,
-    areAllFieldsReadonly?: boolean,
-    defaultFieldRules?: Dictionary<IBusinessRule>
-  ) => IConfigBusinessRules
-): { onLoadRules: IConfigBusinessRules; initEntityData: IEntityData } => {
-  const defaultBusinessRules = GetDefaultBusinessRules(fieldConfigs);
+    fields: Record<string, IFieldConfig>,
+    areAllFieldsReadonly?: boolean
+  ) => IRuntimeFormState
+): { formState: IRuntimeFormState; initEntityData: IEntityData } => {
   const initEntityData: IEntityData = { ...defaultValues, Parent: { ...parentEntity } };
-  const executeValueFunctions = GetValueFunctionsOnCreate(defaultBusinessRules);
 
-  executeValueFunctions?.forEach(evf => {
-    if (evf.valueFunction) {
-      const fieldValue = ExecuteValueFunction(
-        evf.fieldName,
-        evf.valueFunction,
-        undefined,
+  // Execute computed values for create
+  for (const [fieldName, config] of Object.entries(fields)) {
+    if (config.computedValue && config.computeOnCreateOnly) {
+      const result = ExecuteComputedValue(
+        config.computedValue,
+        initEntityData,
+        fieldName,
         parentEntity,
         userId
       );
-      setValue(`${evf.fieldName}` as const, fieldValue);
-      initEntityData[evf.fieldName] = fieldValue;
+      if (result !== undefined) {
+        setValue(`${fieldName}` as const, result);
+        initEntityData[fieldName] = result;
+      }
     }
-  });
-
-  Object.keys(defaultBusinessRules).forEach(fieldName => {
-    if (defaultBusinessRules[fieldName].onlyOnCreateValue) {
-      setValue(`${fieldName}` as const, defaultBusinessRules[fieldName].onlyOnCreateValue);
-      initEntityData[fieldName] = defaultBusinessRules[fieldName].onlyOnCreateValue;
-    } else if (defaultBusinessRules[fieldName].defaultValue) {
-      setValue(`${fieldName}` as const, defaultBusinessRules[fieldName].defaultValue);
-      initEntityData[fieldName] = defaultBusinessRules[fieldName].defaultValue;
+    if (config.defaultValue !== undefined && isNull(initEntityData[fieldName])) {
+      setValue(`${fieldName}` as const, config.defaultValue);
+      initEntityData[fieldName] = config.defaultValue;
     }
-  });
+  }
 
   return {
-    onLoadRules: initBusinessRules(configName, initEntityData, fieldConfigs, false, defaultBusinessRules),
-    initEntityData
+    formState: initFormState(configName, initEntityData, fields, false),
+    initEntityData,
   };
 };
 
-export const InitOnEditBusinessRules = (
+export const InitOnEditFormState = (
   configName: string,
-  fieldConfigs: Dictionary<IFieldConfig>,
+  fields: Record<string, IFieldConfig>,
   defaultValues: IEntityData,
   areAllFieldsReadonly: boolean,
-  initBusinessRules: (
+  initFormState: (
     configName: string,
     defaultValues: IEntityData,
-    fieldConfigs: Dictionary<IFieldConfig>,
-    areAllFieldsReadonly?: boolean,
-    defaultFieldRules?: Dictionary<IBusinessRule>
-  ) => IConfigBusinessRules
-): { onLoadRules: IConfigBusinessRules; initEntityData: IEntityData } => {
+    fields: Record<string, IFieldConfig>,
+    areAllFieldsReadonly?: boolean
+  ) => IRuntimeFormState
+): { formState: IRuntimeFormState; initEntityData: IEntityData } => {
   return {
-    onLoadRules: initBusinessRules(configName, defaultValues, fieldConfigs, areAllFieldsReadonly),
-    initEntityData: defaultValues
+    formState: initFormState(configName, defaultValues, fields, areAllFieldsReadonly),
+    initEntityData: defaultValues,
   };
 };
 
@@ -317,101 +252,17 @@ export const ShowField = (filterText?: string, value?: SubEntityType, label?: st
     (labelStr?.includes(filterText.toLowerCase()) ?? false);
 };
 
-export const CombineSchemaConfig = (
-  fieldConfigs: Dictionary<IFieldConfig>,
-  schemaConfigs: Dictionary<IPropertySchema>
-): Dictionary<IFieldConfig> => {
-  const results = deepCopy(fieldConfigs);
-
-  Object.keys(fieldConfigs).map(fieldName => {
-    const fieldConfigSchema = schemaConfigs[fieldName];
-
-    const schemaDefault = fieldConfigSchema?.defaultValue ? (fieldConfigSchema?.defaultValue as string) : undefined;
-    const defaultValue =
-      schemaDefault && /^\{[\S\s]*}$/.test(schemaDefault)
-        ? GetDefaultValue(schemaDefault.slice(1, -1), fieldConfigSchema.type)
-        : schemaDefault;
-
-    results[fieldName].defaultValue = defaultValue;
-
-    results[fieldName].dropdownOptions = fieldConfigSchema?.values
-      ? ProcessDropdownOptions(fieldConfigSchema.values as IDropdownOption[], fieldConfigs[fieldName])
-      : [];
-
-    fieldConfigSchema?.depdendencyRules?.forEach((dependencyRule: ISchemaDepRule) => {
-      if (dependencyRule.conditions?.length === 1) {
-        const { fieldName: condFieldName, fieldValue: condFieldValue } = dependencyRule.conditions[0];
-        const dropdownOptions = dependencyRule.dependencyValues as string[];
-
-        if (results[condFieldName]?.dropdownDependencies?.[condFieldValue]) {
-          results[condFieldName].dropdownDependencies[condFieldValue][fieldName] = [...dropdownOptions];
-        } else if (results[condFieldName]) {
-          results[condFieldName].dropdownDependencies = results[condFieldName].dropdownDependencies || {};
-          results[condFieldName].dropdownDependencies[condFieldValue] =
-            results[condFieldName].dropdownDependencies[condFieldValue] || {};
-          results[condFieldName].dropdownDependencies[condFieldValue][fieldName] = [...dropdownOptions];
-        }
-      }
-    });
-
-    results[fieldName].deprecatedDropdownOptions = fieldConfigSchema?.deprecatedOptions
-      ? [...fieldConfigSchema?.deprecatedOptions]
-      : [];
-  });
-
-  return results;
-};
-
-/** Schema types defined locally */
-export interface IPropertySchema {
-  defaultValue?: unknown;
-  type?: string[];
-  values?: unknown[];
-  depdendencyRules?: ISchemaDepRule[];
-  deprecatedOptions?: IDeprecatedOption[];
-}
-
-interface ISchemaDepRule {
-  conditions?: Array<{ fieldName: string; fieldValue: string }>;
-  dependencyValues?: string[];
-}
-
-const SchemaTypes = {
-  boolean: "boolean",
-  number: "number",
-  integer: "integer",
-  string: "string",
-} as const;
-
-const GetDefaultValue = (value: string, type?: string[]): string | number | boolean => {
-  if (!type) return value;
-  if (type.indexOf(SchemaTypes.boolean) > -1) {
-    try {
-      return JSON.parse(value.toLowerCase()) as boolean;
-    } catch {
-      return value;
-    }
-  } else if (type.indexOf(SchemaTypes.number) > -1 || type.indexOf(SchemaTypes.integer) > -1) {
-    return +value;
-  } else if (type.indexOf(SchemaTypes.string) > -1) {
-    return value.replace(/'/g, "");
-  } else {
-    return value;
-  }
-};
-
 export const GetFieldsToRender = (
   fieldRenderLimit: number,
   fieldOrder: string[],
-  fieldRules?: Dictionary<IBusinessRule>
+  fieldStates?: Record<string, IRuntimeFieldState>
 ): IFieldToRender[] => {
   if (fieldRenderLimit) {
     const fieldsToRender: IFieldToRender[] = [];
     let count = 0;
     fieldOrder.forEach(fieldName => {
-      if (fieldRules?.[fieldName]?.hidden) {
-        return;
-      } else if (count === fieldRenderLimit) {
+      if (fieldStates?.[fieldName]?.hidden) return;
+      if (count === fieldRenderLimit) {
         fieldsToRender.push({ fieldName, softHidden: true });
       } else {
         fieldsToRender.push({ fieldName, softHidden: false });
@@ -419,24 +270,15 @@ export const GetFieldsToRender = (
       }
     });
     return fieldsToRender;
-  } else {
-    return fieldOrder?.map(fieldName => {
-      return { fieldName, softHidden: false };
-    });
   }
+  return fieldOrder?.map(fieldName => ({ fieldName, softHidden: false }));
 };
 
-export const CheckCrossFieldValidationRules = (
-  entityData: IEntityData,
-  fieldName: string,
-  crossFieldValidations: string[]
-): string | undefined => {
-  for (const validationName of crossFieldValidations) {
-    const validationFn = getCrossFieldValidation(validationName);
-    if (validationFn) {
-      const result = validationFn(entityData, fieldName);
-      if (result) return result;
-    }
-  }
-  return undefined;
+/** Sort options alphabetically by label */
+export const SortOptions = (options: IOption[]): IOption[] => {
+  return [...options].sort((a, b) => {
+    const aLabel = a.label?.toLowerCase() ?? "";
+    const bLabel = b.label?.toLowerCase() ?? "";
+    return aLabel < bLabel ? -1 : aLabel > bLabel ? 1 : 0;
+  });
 };

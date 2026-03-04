@@ -1,29 +1,24 @@
-import { Dictionary, IEntityData } from "../utils";
-import { IBusinessRule } from "../types/IBusinessRule";
-import { IBusinessRulesState } from "../types/IBusinessRulesState";
-import { IConfigBusinessRules } from "../types/IConfigBusinessRules";
+import { IEntityData } from "../utils";
 import { IFieldConfig } from "../types/IFieldConfig";
+import { IRulesEngineState, IRuntimeFormState } from "../types/IRuntimeFieldState";
 
-export interface IBusinessRulesProvider {
-  businessRules: IBusinessRulesState;
-  initBusinessRules: (
+export interface IRulesEngineProvider {
+  rulesState: IRulesEngineState;
+  initFormState: (
     configName: string,
     defaultValues: IEntityData,
-    fieldConfigs: Dictionary<IFieldConfig>,
-    areAllFieldsReadonly?: boolean,
-    defaultFieldRules?: Dictionary<IBusinessRule>
-  ) => IConfigBusinessRules;
-  processBusinessRule: (
+    fields: Record<string, IFieldConfig>,
+    areAllFieldsReadonly?: boolean
+  ) => IRuntimeFormState;
+  processFieldChange: (
     entityData: IEntityData,
     configName: string,
     fieldName: string,
-    previousValue: string,
-    fieldConfigs: Dictionary<IFieldConfig>
+    fields: Record<string, IFieldConfig>
   ) => void;
-  /** Clears business rules state. If configName is provided, clears only that config. If omitted, clears all configs. */
-  clearBusinessRules: (configName?: string) => void;
+  clearFormState: (configName?: string) => void;
 }
 
-export const defaultBusinessRulesState: IBusinessRulesState = {
-  configRules: {}
+export const defaultRulesEngineState: IRulesEngineState = {
+  configs: {},
 };

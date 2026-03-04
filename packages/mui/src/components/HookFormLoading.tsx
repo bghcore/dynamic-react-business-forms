@@ -1,4 +1,4 @@
-import { HookInlineFormConstants } from "@bghcore/dynamic-forms-core";
+import { FormConstants } from "@bghcore/dynamic-forms-core";
 import { Skeleton } from "@mui/material";
 import React from "react";
 
@@ -13,12 +13,12 @@ export const HookFormLoading = (props: IHookFormLoadingProps) => {
   const { loadingShimmerCount, loadingFieldShimmerHeight, inPanel, hideTitleShimmer } = props;
   return (
     <div className={`hook-form-loading ${inPanel ? "in-panel" : ""}`}>
-      {[...Array(loadingShimmerCount || HookInlineFormConstants.loadingShimmerCount)].map((_, i) => (
+      {[...Array(loadingShimmerCount || FormConstants.loadingShimmerCount)].map((_, i) => (
         <div key={`hook-form-loading-${i}`} className="form-field-loading" style={{ marginBottom: "16px" }}>
           {!hideTitleShimmer && <Skeleton variant="text" width="33%" />}
           <Skeleton
             variant="rectangular"
-            height={loadingFieldShimmerHeight || HookInlineFormConstants.loadingFieldShimmerHeight}
+            height={loadingFieldShimmerHeight || FormConstants.loadingFieldShimmerHeight}
           />
         </div>
       ))}

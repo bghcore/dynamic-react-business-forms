@@ -1,24 +1,24 @@
 import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { HookFieldWrapper } from "../../components/HookFieldWrapper";
+import { FieldWrapper } from "../../components/HookFieldWrapper";
 import { FormProvider, useForm } from "react-hook-form";
-import { HookInlineForm } from "../../components/HookInlineForm";
-import { BusinessRulesProvider } from "../../providers/BusinessRulesProvider";
-import { InjectedHookFieldProvider } from "../../providers/InjectedHookFieldProvider";
+import { DynamicForm } from "../../components/HookInlineForm";
+import { RulesEngineProvider } from "../../providers/BusinessRulesProvider";
+import { InjectedFieldProvider } from "../../providers/InjectedHookFieldProvider";
 
-/** A minimal FormProvider wrapper for HookFieldWrapper tests */
+/** A minimal FormProvider wrapper for FieldWrapper tests */
 const FormProviderWrapper: React.FC<React.PropsWithChildren<{}>> = ({ children }) => {
   const methods = useForm({ defaultValues: {} });
   return <FormProvider {...methods}>{children}</FormProvider>;
 };
 
-describe("HookFieldWrapper render props", () => {
+describe("FieldWrapper render props", () => {
   it("renders the default label when no renderLabel prop is provided", () => {
     render(
-      <HookFieldWrapper id="testField" label="Test Label" required={true}>
+      <FieldWrapper id="testField" label="Test Label" required={true}>
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const label = screen.getByText("Test Label");
@@ -40,14 +40,14 @@ describe("HookFieldWrapper render props", () => {
     );
 
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="My Field"
         required={true}
         renderLabel={customRenderLabel}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     // Custom label should be rendered
@@ -69,13 +69,13 @@ describe("HookFieldWrapper render props", () => {
 
   it("renders the default error display when no renderError prop is provided", () => {
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="errorField"
         label="Error Field"
         error={{ type: "required", message: "This field is required" }}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const errorMessage = screen.getByText("This field is required");
@@ -94,7 +94,7 @@ describe("HookFieldWrapper render props", () => {
     );
 
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="errorField"
         label="Error Field"
         error={{ type: "required", message: "Field is required" }}
@@ -102,7 +102,7 @@ describe("HookFieldWrapper render props", () => {
         renderError={customRenderError}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     // Custom error should be rendered
@@ -131,14 +131,14 @@ describe("HookFieldWrapper render props", () => {
     );
 
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="statusField"
         label="Status Field"
         saving={true}
         renderStatus={customRenderStatus}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const customStatus = screen.getByTestId("custom-status");
@@ -151,13 +151,13 @@ describe("HookFieldWrapper render props", () => {
 
   it("falls back to default error+status display when neither renderError nor renderStatus provided", () => {
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="savingField"
         label="Saving Field"
         saving={true}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     // Default saving indicator should be rendered
@@ -166,13 +166,13 @@ describe("HookFieldWrapper render props", () => {
   });
 });
 
-describe("HookInlineForm formErrors", () => {
-  /** Wraps HookInlineForm with necessary providers */
+describe("DynamicForm formErrors", () => {
+  /** Wraps DynamicForm with necessary providers */
   const renderWithProviders = (formErrors?: string[]) => {
     return render(
-      <BusinessRulesProvider>
-        <InjectedHookFieldProvider>
-          <HookInlineForm
+      <RulesEngineProvider>
+        <InjectedFieldProvider>
+          <DynamicForm
             configName="test"
             programName="testProgram"
             entityId="entity-1"
@@ -181,15 +181,15 @@ describe("HookInlineForm formErrors", () => {
             defaultValues={{}}
             formErrors={formErrors}
           />
-        </InjectedHookFieldProvider>
-      </BusinessRulesProvider>
+        </InjectedFieldProvider>
+      </RulesEngineProvider>
     );
   };
 
   it("displays error banner when formErrors has entries", () => {
     renderWithProviders(["Server error: invalid combination", "Cross-field validation failed"]);
 
-    const errorBanner = document.querySelector(".hook-form-errors");
+    const errorBanner = document.querySelector(".form-errors");
     expect(errorBanner).not.toBeNull();
     expect(errorBanner).toHaveAttribute("role", "alert");
 
@@ -197,21 +197,21 @@ describe("HookInlineForm formErrors", () => {
     expect(screen.getByText("Cross-field validation failed")).toBeInTheDocument();
 
     // Should have two error items
-    const errorItems = document.querySelectorAll(".hook-form-error-item");
+    const errorItems = document.querySelectorAll(".form-error-item");
     expect(errorItems.length).toBe(2);
   });
 
   it("shows no banner when formErrors is an empty array", () => {
     renderWithProviders([]);
 
-    const errorBanner = document.querySelector(".hook-form-errors");
+    const errorBanner = document.querySelector(".form-errors");
     expect(errorBanner).toBeNull();
   });
 
   it("shows no banner when formErrors is undefined", () => {
     renderWithProviders(undefined);
 
-    const errorBanner = document.querySelector(".hook-form-errors");
+    const errorBanner = document.querySelector(".form-errors");
     expect(errorBanner).toBeNull();
   });
 });

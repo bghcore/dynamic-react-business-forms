@@ -64,7 +64,6 @@ describe("RuleTracer", () => {
         triggerValue: "val2",
         affectedField: "fieldD",
       });
-      // Should still have only 1 event (the one added before disabling)
       expect(getRuleTraceLog()).toHaveLength(1);
     });
   });
@@ -90,7 +89,6 @@ describe("RuleTracer", () => {
     });
 
     it("is a no-op when tracing is disabled", () => {
-      // Tracing is disabled by default (from beforeEach)
       traceRuleEvent({
         type: "apply",
         triggerField: "a",
@@ -120,11 +118,9 @@ describe("RuleTracer", () => {
     it("records all event types correctly", () => {
       enableRuleTracing();
       const types: IRuleTraceEvent["type"][] = [
-        "revert",
+        "evaluate",
         "apply",
-        "combo",
-        "dropdown",
-        "order",
+        "revert",
         "init",
       ];
 
@@ -138,7 +134,7 @@ describe("RuleTracer", () => {
       });
 
       const log = getRuleTraceLog();
-      expect(log).toHaveLength(6);
+      expect(log).toHaveLength(4);
       types.forEach((type, index) => {
         expect(log[index].type).toBe(type);
       });
@@ -159,6 +155,20 @@ describe("RuleTracer", () => {
       expect(event.previousState).toEqual({ hidden: false, required: false });
       expect(event.newState).toEqual({ hidden: true, required: true });
     });
+
+    it("preserves ruleId", () => {
+      enableRuleTracing();
+      traceRuleEvent({
+        type: "apply",
+        triggerField: "f",
+        triggerValue: "v",
+        affectedField: "a",
+        ruleId: "my-rule-id",
+      });
+
+      const log = getRuleTraceLog();
+      expect(log[0].ruleId).toBe("my-rule-id");
+    });
   });
 
   describe("getRuleTraceLog", () => {
@@ -177,7 +187,7 @@ describe("RuleTracer", () => {
         affectedField: "b",
       });
       traceRuleEvent({
-        type: "combo",
+        type: "evaluate",
         triggerField: "third",
         triggerValue: "3",
         affectedField: "c",
@@ -237,7 +247,7 @@ describe("RuleTracer", () => {
       });
       clearRuleTraceLog();
       traceRuleEvent({
-        type: "order",
+        type: "evaluate",
         triggerField: "g",
         triggerValue: "w",
         affectedField: "b",
@@ -245,7 +255,7 @@ describe("RuleTracer", () => {
 
       const log = getRuleTraceLog();
       expect(log).toHaveLength(1);
-      expect(log[0].type).toBe("order");
+      expect(log[0].type).toBe("evaluate");
     });
   });
 
@@ -269,7 +279,6 @@ describe("RuleTracer", () => {
 
       expect(callback).toHaveBeenCalledTimes(2);
 
-      // Verify the callback received the full event (with timestamp)
       const firstCallArg = callback.mock.calls[0][0] as IRuleTraceEvent;
       expect(firstCallArg.type).toBe("apply");
       expect(firstCallArg.triggerField).toBe("fieldA");
@@ -308,8 +317,7 @@ describe("RuleTracer", () => {
       expect(callback).toHaveBeenCalledTimes(1);
 
       disableRuleTracing();
-      // Re-enable without callback
-      enableRuleTracing();
+      enableRuleTracing(); // Re-enable without callback
 
       traceRuleEvent({
         type: "apply",
@@ -317,12 +325,11 @@ describe("RuleTracer", () => {
         triggerValue: "w",
         affectedField: "b",
       });
-      // Original callback should not have been called again
       expect(callback).toHaveBeenCalledTimes(1);
     });
 
     it("works without a callback", () => {
-      enableRuleTracing(); // No callback
+      enableRuleTracing();
 
       traceRuleEvent({
         type: "apply",
@@ -331,7 +338,6 @@ describe("RuleTracer", () => {
         affectedField: "a",
       });
 
-      // Should still log the event
       expect(getRuleTraceLog()).toHaveLength(1);
     });
   });

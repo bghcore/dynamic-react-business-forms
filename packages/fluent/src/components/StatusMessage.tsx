@@ -1,4 +1,4 @@
-import { HookInlineFormStrings } from "@bghcore/dynamic-forms-core";
+import { FormStrings } from "@bghcore/dynamic-forms-core";
 import { Spinner } from "@fluentui/react-components";
 import { ErrorCircleRegular, WarningRegular } from "@fluentui/react-icons";
 import React from "react";
@@ -27,14 +27,14 @@ export const StatusMessage: React.FunctionComponent<IStatusMessageProps> = (prop
         <>
           <WarningRegular className="warning-icon" />
           <span className="warning-message" id={id} role="alert">
-            {HookInlineFormStrings.autoSavePending} ({errorCount} {HookInlineFormStrings.remaining})
+            {FormStrings.autoSavePending} ({errorCount} {FormStrings.remaining})
           </span>
         </>
       ) : saving ? (
         <>
           <Spinner size="tiny" />
           <span className="save-message" id={id} role="alert">
-            {HookInlineFormStrings.saving}
+            {FormStrings.saving}
           </span>
         </>
       ) : null}

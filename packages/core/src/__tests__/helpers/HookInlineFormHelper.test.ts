@@ -3,24 +3,22 @@ import {
   GetChildEntity,
   IsExpandVisible,
   GetConfirmInputModalProps,
-  GetValueFunctionsOnDirtyFields,
-  GetValueFunctionsOnCreate,
+  GetComputedValuesOnDirtyFields,
+  GetComputedValuesOnCreate,
   CheckFieldValidationRules,
-  CheckIsDeprecated,
+  CheckAsyncFieldValidationRules,
   ShowField,
   GetFieldsToRender,
   CheckDefaultValues,
-  CheckDeprecatedDropdownOptions,
   CheckValidDropdownOptions,
-  CombineSchemaConfig,
-  ExecuteValueFunction,
-  InitOnEditBusinessRules,
+  ExecuteComputedValue,
+  InitOnEditFormState,
+  SortOptions,
 } from "../../helpers/HookInlineFormHelper";
-import { Dictionary, IEntityData } from "../../utils";
-import { IBusinessRule } from "../../types/IBusinessRule";
+import { IEntityData } from "../../utils";
+import { IRuntimeFieldState, IRuntimeFormState } from "../../types/IRuntimeFieldState";
 import { IFieldConfig } from "../../types/IFieldConfig";
-import { HookInlineFormConstants } from "../../constants";
-import { deprecatedDropdownConfigs, multiselectConfigs } from "../__fixtures__/fieldConfigs";
+import { IOption } from "../../types/IOption";
 
 describe("HookInlineFormHelper", () => {
   describe("GetChildEntity", () => {
@@ -82,56 +80,48 @@ describe("HookInlineFormHelper", () => {
 
   describe("IsExpandVisible", () => {
     it("returns true when visible (non-hidden) fields exceed the default cutoff", () => {
-      const rules: Dictionary<IBusinessRule> = {};
-      // default cutoff is 12, create 13 non-hidden fields
+      const fieldStates: Record<string, IRuntimeFieldState> = {};
       for (let i = 0; i < 13; i++) {
-        rules[`field${i}`] = { hidden: false };
+        fieldStates[`field${i}`] = { hidden: false };
       }
-      expect(IsExpandVisible(rules)).toBe(true);
+      expect(IsExpandVisible(fieldStates)).toBe(true);
     });
 
     it("returns false when visible fields are at or below the default cutoff", () => {
-      const rules: Dictionary<IBusinessRule> = {};
+      const fieldStates: Record<string, IRuntimeFieldState> = {};
       for (let i = 0; i < 12; i++) {
-        rules[`field${i}`] = { hidden: false };
+        fieldStates[`field${i}`] = { hidden: false };
       }
-      expect(IsExpandVisible(rules)).toBe(false);
+      expect(IsExpandVisible(fieldStates)).toBe(false);
     });
 
     it("does not count hidden fields", () => {
-      const rules: Dictionary<IBusinessRule> = {};
+      const fieldStates: Record<string, IRuntimeFieldState> = {};
       for (let i = 0; i < 20; i++) {
-        rules[`field${i}`] = { hidden: true };
+        fieldStates[`field${i}`] = { hidden: true };
       }
-      // 0 visible fields, should not exceed cutoff
-      expect(IsExpandVisible(rules)).toBe(false);
+      expect(IsExpandVisible(fieldStates)).toBe(false);
     });
 
     it("uses custom expandCutoffCount when provided", () => {
-      const rules: Dictionary<IBusinessRule> = {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         field1: { hidden: false },
         field2: { hidden: false },
         field3: { hidden: false },
       };
-      // cutoff of 2, 3 visible fields -> should be visible
-      expect(IsExpandVisible(rules, 2)).toBe(true);
-      // cutoff of 3, 3 visible fields -> should NOT be visible
-      expect(IsExpandVisible(rules, 3)).toBe(false);
+      expect(IsExpandVisible(fieldStates, 2)).toBe(true);
+      expect(IsExpandVisible(fieldStates, 3)).toBe(false);
     });
   });
 
   describe("GetConfirmInputModalProps", () => {
     it("builds confirmInput props from dirty fields with confirm dependencies", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        trigger: {
-          dependentFields: ["confirmed"],
-        },
-        confirmed: {
-          confirmInput: true,
-        },
+      const fieldStates: Record<string, IRuntimeFieldState> = {
+        trigger: { dependentFields: ["confirmed"] },
+        confirmed: { confirmInput: true },
       };
 
-      const result = GetConfirmInputModalProps(["trigger"], fieldRules);
+      const result = GetConfirmInputModalProps(["trigger"], fieldStates);
 
       expect(result.confirmInputsTriggeredBy).toBe("trigger");
       expect(result.dependentFieldNames).toEqual(["confirmed"]);
@@ -139,17 +129,13 @@ describe("HookInlineFormHelper", () => {
     });
 
     it("includes other dirty fields that are not the trigger or confirm dependents", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        trigger: {
-          dependentFields: ["confirmed"],
-        },
-        confirmed: {
-          confirmInput: true,
-        },
+      const fieldStates: Record<string, IRuntimeFieldState> = {
+        trigger: { dependentFields: ["confirmed"] },
+        confirmed: { confirmInput: true },
         otherField: {},
       };
 
-      const result = GetConfirmInputModalProps(["trigger", "otherField"], fieldRules);
+      const result = GetConfirmInputModalProps(["trigger", "otherField"], fieldStates);
 
       expect(result.confirmInputsTriggeredBy).toBe("trigger");
       expect(result.dependentFieldNames).toEqual(["confirmed"]);
@@ -157,233 +143,145 @@ describe("HookInlineFormHelper", () => {
     });
 
     it("returns empty props when no dirty fields have confirm dependencies", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         fieldA: { dependentFields: ["fieldB"] },
         fieldB: { confirmInput: false },
       };
 
-      const result = GetConfirmInputModalProps(["fieldA"], fieldRules);
+      const result = GetConfirmInputModalProps(["fieldA"], fieldStates);
 
       expect(result.confirmInputsTriggeredBy).toBeUndefined();
       expect(result.dependentFieldNames).toBeUndefined();
     });
 
     it("collects multiple confirm dependents from a single trigger", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        trigger: {
-          dependentFields: ["confirm1", "confirm2"],
-        },
+      const fieldStates: Record<string, IRuntimeFieldState> = {
+        trigger: { dependentFields: ["confirm1", "confirm2"] },
         confirm1: { confirmInput: true },
         confirm2: { confirmInput: true },
       };
 
-      const result = GetConfirmInputModalProps(["trigger"], fieldRules);
+      const result = GetConfirmInputModalProps(["trigger"], fieldStates);
 
       expect(result.confirmInputsTriggeredBy).toBe("trigger");
       expect(result.dependentFieldNames).toEqual(["confirm1", "confirm2"]);
     });
   });
 
-  describe("GetValueFunctionsOnDirtyFields", () => {
-    it("finds value functions on dependents of dirty fields", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        name: {
-          dependentFields: ["modifiedDate"],
-        },
-        modifiedDate: {
-          valueFunction: "setDate",
-        },
+  describe("GetComputedValuesOnDirtyFields", () => {
+    it("finds computed values on dependents of dirty fields", () => {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
+        name: { dependentFields: ["modifiedDate"] },
+        modifiedDate: { computedValue: "$fn.setDate()" },
       };
 
-      const result = GetValueFunctionsOnDirtyFields(["name"], fieldRules);
+      const result = GetComputedValuesOnDirtyFields(["name"], fieldStates);
 
       expect(result).toEqual([
-        { fieldName: "modifiedDate", valueFunction: "setDate" },
+        { fieldName: "modifiedDate", expression: "$fn.setDate()" },
       ]);
     });
 
     it("excludes dependents that are themselves dirty", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        name: {
-          dependentFields: ["modifiedDate"],
-        },
-        modifiedDate: {
-          valueFunction: "setDate",
-        },
+      const fieldStates: Record<string, IRuntimeFieldState> = {
+        name: { dependentFields: ["modifiedDate"] },
+        modifiedDate: { computedValue: "$fn.setDate()" },
       };
 
-      // Both name and modifiedDate are dirty
-      const result = GetValueFunctionsOnDirtyFields(["name", "modifiedDate"], fieldRules);
-
+      const result = GetComputedValuesOnDirtyFields(["name", "modifiedDate"], fieldStates);
       expect(result).toEqual([]);
     });
 
-    it("excludes dependents with onlyOnCreate flag", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        name: {
-          dependentFields: ["createdDate"],
-        },
+    it("excludes dependents with computeOnCreateOnly flag", () => {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
+        name: { dependentFields: ["createdDate"] },
         createdDate: {
-          valueFunction: "setDate",
-          onlyOnCreate: true,
+          computedValue: "$fn.setDate()",
+          computeOnCreateOnly: true,
         },
       };
 
-      const result = GetValueFunctionsOnDirtyFields(["name"], fieldRules);
-
+      const result = GetComputedValuesOnDirtyFields(["name"], fieldStates);
       expect(result).toEqual([]);
     });
 
-    it("excludes dependents with empty valueFunction", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        name: {
-          dependentFields: ["otherField"],
-        },
-        otherField: {
-          valueFunction: "",
-        },
+    it("excludes dependents with no computedValue", () => {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
+        name: { dependentFields: ["otherField"] },
+        otherField: {},
       };
 
-      const result = GetValueFunctionsOnDirtyFields(["name"], fieldRules);
-
+      const result = GetComputedValuesOnDirtyFields(["name"], fieldStates);
       expect(result).toEqual([]);
     });
 
-    it("returns empty array when no dirty fields have dependents with value functions", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+    it("returns empty array when no dirty fields have dependents with computed values", () => {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         name: {},
       };
 
-      const result = GetValueFunctionsOnDirtyFields(["name"], fieldRules);
-
+      const result = GetComputedValuesOnDirtyFields(["name"], fieldStates);
       expect(result).toEqual([]);
     });
   });
 
-  describe("GetValueFunctionsOnCreate", () => {
-    it("finds onlyOnCreate value functions", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+  describe("GetComputedValuesOnCreate", () => {
+    it("finds computeOnCreateOnly computed values", () => {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         createdDate: {
-          valueFunction: "setDate",
-          onlyOnCreate: true,
+          computedValue: "$fn.setDate()",
+          computeOnCreateOnly: true,
         },
         modifiedDate: {
-          valueFunction: "setDate",
-          onlyOnCreate: false,
+          computedValue: "$fn.setDate()",
         },
         name: {},
       };
 
-      const result = GetValueFunctionsOnCreate(fieldRules);
+      const result = GetComputedValuesOnCreate(fieldStates);
 
       expect(result).toEqual([
-        { fieldName: "createdDate", valueFunction: "setDate" },
+        { fieldName: "createdDate", expression: "$fn.setDate()" },
       ]);
     });
 
-    it("returns empty array when no fields have onlyOnCreate", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        modifiedDate: {
-          valueFunction: "setDate",
-        },
+    it("returns empty array when no fields have computeOnCreateOnly", () => {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
+        modifiedDate: { computedValue: "$fn.setDate()" },
         name: {},
       };
 
-      const result = GetValueFunctionsOnCreate(fieldRules);
-
-      expect(result).toEqual([]);
-    });
-
-    it("excludes fields with empty or missing valueFunction even if onlyOnCreate is true", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        field1: {
-          valueFunction: "",
-          onlyOnCreate: true,
-        },
-        field2: {
-          onlyOnCreate: true,
-          // valueFunction not set
-        },
-      };
-
-      const result = GetValueFunctionsOnCreate(fieldRules);
-
+      const result = GetComputedValuesOnCreate(fieldStates);
       expect(result).toEqual([]);
     });
   });
 
   describe("CheckFieldValidationRules", () => {
     it("returns undefined when all validations pass", () => {
-      const result = CheckFieldValidationRules(
-        "user@example.com",
-        {},
-        ["EmailValidation"]
-      );
+      const state: IRuntimeFieldState = {
+        validate: [{ name: "email" }],
+      };
+      const result = CheckFieldValidationRules("user@example.com", "email", {}, state);
       expect(result).toBeUndefined();
     });
 
-    it("returns the error message when a single validation fails", () => {
-      const result = CheckFieldValidationRules(
-        "not-an-email",
-        {},
-        ["EmailValidation"]
-      );
+    it("returns the error message when a validation fails", () => {
+      const state: IRuntimeFieldState = {
+        validate: [{ name: "email" }],
+      };
+      const result = CheckFieldValidationRules("not-an-email", "email", {}, state);
       expect(result).toBe("Invalid email address");
     });
 
-    it("concatenates errors from multiple failing validations", () => {
-      const result = CheckFieldValidationRules(
-        "abc",
-        {},
-        ["EmailValidation", "isValidUrl"]
-      );
-      expect(result).toBe("Invalid email address & Invalid URL");
-    });
-
-    it("returns undefined when validations array is empty", () => {
-      const result = CheckFieldValidationRules("anything", {}, []);
+    it("returns undefined when validate array is empty", () => {
+      const state: IRuntimeFieldState = { validate: [] };
+      const result = CheckFieldValidationRules("anything", "field", {}, state);
       expect(result).toBeUndefined();
     });
 
-    it("skips unknown validators gracefully", () => {
-      const result = CheckFieldValidationRules(
-        "test@example.com",
-        {},
-        ["NonExistentValidator", "EmailValidation"]
-      );
-      // NonExistentValidator returns undefined, EmailValidation passes
-      expect(result).toBeUndefined();
-    });
-
-    it("handles mix of passing, failing, and unknown validators", () => {
-      const result = CheckFieldValidationRules(
-        "not-valid",
-        {},
-        ["NonExistentValidator", "EmailValidation", "isValidUrl"]
-      );
-      expect(result).toBe("Invalid email address & Invalid URL");
-    });
-  });
-
-  describe("CheckIsDeprecated", () => {
-    it("returns true when value is in deprecated options", () => {
-      const fieldConfig = deprecatedDropdownConfigs.category;
-      const result = CheckIsDeprecated("C", fieldConfig);
-      expect(result).toBe(true);
-    });
-
-    it("returns false/undefined when value is not deprecated", () => {
-      const fieldConfig = deprecatedDropdownConfigs.category;
-      const result = CheckIsDeprecated("A", fieldConfig);
-      expect(result).toBeFalsy();
-    });
-
-    it("returns undefined when fieldConfig has no deprecatedDropdownOptions", () => {
-      const fieldConfig: IFieldConfig = {
-        component: "Dropdown",
-        label: "Test",
-      };
-      const result = CheckIsDeprecated("X", fieldConfig);
+    it("returns undefined when validate is undefined", () => {
+      const state: IRuntimeFieldState = {};
+      const result = CheckFieldValidationRules("anything", "field", {}, state);
       expect(result).toBeUndefined();
     });
   });
@@ -427,7 +325,7 @@ describe("HookInlineFormHelper", () => {
 
   describe("GetFieldsToRender", () => {
     const fieldOrder = ["field1", "field2", "field3", "field4", "field5"];
-    const fieldRules: Dictionary<IBusinessRule> = {
+    const fieldStates: Record<string, IRuntimeFieldState> = {
       field1: { hidden: false },
       field2: { hidden: false },
       field3: { hidden: true },
@@ -436,7 +334,7 @@ describe("HookInlineFormHelper", () => {
     };
 
     it("returns all fields as not softHidden when fieldRenderLimit is 0 (no limit)", () => {
-      const result = GetFieldsToRender(0, fieldOrder, fieldRules);
+      const result = GetFieldsToRender(0, fieldOrder, fieldStates);
 
       expect(result).toHaveLength(5);
       result.forEach((field) => {
@@ -445,34 +343,24 @@ describe("HookInlineFormHelper", () => {
     });
 
     it("respects field render limit and soft-hides fields beyond it", () => {
-      // Limit to 2 visible fields. field3 is hidden so not counted.
-      // field1 (visible, count=1), field2 (visible, count=2), field3 (hidden, skipped),
-      // field4 (visible, but count=2 already => softHidden), field5 similarly
-      const result = GetFieldsToRender(2, fieldOrder, fieldRules);
+      const result = GetFieldsToRender(2, fieldOrder, fieldStates);
 
-      expect(result).toHaveLength(4); // hidden field3 is skipped entirely
       expect(result[0]).toEqual({ fieldName: "field1", softHidden: false });
       expect(result[1]).toEqual({ fieldName: "field2", softHidden: false });
+      // field3 is hidden and skipped
       expect(result[2]).toEqual({ fieldName: "field4", softHidden: true });
       expect(result[3]).toEqual({ fieldName: "field5", softHidden: true });
     });
 
-    it("skips hidden fields (they do not appear in output when limit is set)", () => {
-      const result = GetFieldsToRender(10, fieldOrder, fieldRules);
-
-      // field3 is hidden, so it gets returned but not counted
-      // Actually, looking at the code: hidden fields `return;` (skip entirely)
-      // Wait - let me re-check the code flow:
-      // if hidden -> return (skip, do not push)
-      // else if count === limit -> push with softHidden true
-      // else -> push with softHidden false, count++
+    it("skips hidden fields when limit is set", () => {
+      const result = GetFieldsToRender(10, fieldOrder, fieldStates);
       const fieldNames = result.map((f) => f.fieldName);
       expect(fieldNames).not.toContain("field3");
       expect(result).toHaveLength(4);
     });
 
     it("handles empty field order", () => {
-      const result = GetFieldsToRender(5, [], fieldRules);
+      const result = GetFieldsToRender(5, [], fieldStates);
       expect(result).toEqual([]);
     });
 
@@ -489,73 +377,54 @@ describe("HookInlineFormHelper", () => {
 
   describe("CheckDefaultValues", () => {
     it("calls setValue for fields with defaultValue when form value is null", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         status: { defaultValue: "Open", hidden: false },
         name: { hidden: false },
       };
 
-      const formValues: IEntityData = {
-        status: null,
-        name: "existing",
-      };
-
+      const formValues: IEntityData = { status: null, name: "existing" };
       const setValue = vi.fn();
 
-      CheckDefaultValues(fieldRules, formValues, setValue);
+      CheckDefaultValues(fieldStates, formValues, setValue);
 
       expect(setValue).toHaveBeenCalledTimes(1);
       expect(setValue).toHaveBeenCalledWith("status", "Open", { shouldDirty: true });
     });
 
     it("does not call setValue when form value already exists", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         status: { defaultValue: "Open", hidden: false },
       };
-
-      const formValues: IEntityData = {
-        status: "Active",
-      };
-
+      const formValues: IEntityData = { status: "Active" };
       const setValue = vi.fn();
 
-      CheckDefaultValues(fieldRules, formValues, setValue);
-
+      CheckDefaultValues(fieldStates, formValues, setValue);
       expect(setValue).not.toHaveBeenCalled();
     });
 
     it("does not call setValue when field is hidden", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         status: { defaultValue: "Open", hidden: true },
       };
-
-      const formValues: IEntityData = {
-        status: null,
-      };
-
+      const formValues: IEntityData = { status: null };
       const setValue = vi.fn();
 
-      CheckDefaultValues(fieldRules, formValues, setValue);
-
+      CheckDefaultValues(fieldStates, formValues, setValue);
       expect(setValue).not.toHaveBeenCalled();
     });
 
     it("does not call setValue when defaultValue is null/undefined", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         status: { defaultValue: undefined, hidden: false },
       };
-
-      const formValues: IEntityData = {
-        status: null,
-      };
-
+      const formValues: IEntityData = { status: null };
       const setValue = vi.fn();
 
-      CheckDefaultValues(fieldRules, formValues, setValue);
-
+      CheckDefaultValues(fieldStates, formValues, setValue);
       expect(setValue).not.toHaveBeenCalled();
     });
 
-    it("does nothing when fieldRules is empty", () => {
+    it("does nothing when fieldStates is empty", () => {
       const setValue = vi.fn();
       CheckDefaultValues({}, { status: null }, setValue);
       expect(setValue).not.toHaveBeenCalled();
@@ -572,511 +441,209 @@ describe("HookInlineFormHelper", () => {
     });
   });
 
-  describe("CheckDeprecatedDropdownOptions", () => {
-    it("returns deprecated option for a Dropdown field when value is deprecated", () => {
-      const fieldConfig: IFieldConfig = {
-        component: HookInlineFormConstants.dropdown,
-        label: "Category",
-        dropdownOptions: [
-          { key: "A", text: "A" },
-          { key: "B", text: "B" },
-        ],
-        deprecatedDropdownOptions: [
-          { oldVal: "C", newVal: "A" },
-        ],
-      };
-
-      const activeOptions = [
-        { key: "A", text: "A" },
-        { key: "B", text: "B" },
-      ];
-
-      const result = CheckDeprecatedDropdownOptions(fieldConfig, activeOptions, "C");
-
-      expect(result).toHaveLength(1);
-      expect(result[0].key).toBe("C");
-      expect(result[0].text).toBe("C");
-      expect(result[0].disabled).toBe(true);
-      expect(result[0].data).toEqual({
-        iconName: "Info",
-        iconTitle: "This value has been Deprecated",
-      });
-    });
-
-    it("returns empty array when the dropdown value is not deprecated", () => {
-      const fieldConfig: IFieldConfig = {
-        component: HookInlineFormConstants.dropdown,
-        label: "Category",
-        deprecatedDropdownOptions: [
-          { oldVal: "C", newVal: "A" },
-        ],
-      };
-
-      const activeOptions = [
-        { key: "A", text: "A" },
-        { key: "B", text: "B" },
-      ];
-
-      const result = CheckDeprecatedDropdownOptions(fieldConfig, activeOptions, "A");
-
-      expect(result).toEqual([]);
-    });
-
-    it("returns empty array when value is already in active dropdown options", () => {
-      const fieldConfig: IFieldConfig = {
-        component: HookInlineFormConstants.dropdown,
-        label: "Category",
-        deprecatedDropdownOptions: [
-          { oldVal: "A" },
-        ],
-      };
-
-      const activeOptions = [
-        { key: "A", text: "A" },
-        { key: "B", text: "B" },
-      ];
-
-      // "A" is in active options, so even though it's deprecated, it is found in dropdown
-      const result = CheckDeprecatedDropdownOptions(fieldConfig, activeOptions, "A");
-
-      expect(result).toEqual([]);
-    });
-
-    it("handles StatusDropdown component type", () => {
-      const fieldConfig: IFieldConfig = {
-        component: HookInlineFormConstants.statusDropdown,
-        label: "Status",
-        deprecatedDropdownOptions: [
-          { oldVal: "Legacy" },
-        ],
-      };
-
-      const activeOptions = [
-        { key: "Active", text: "Active" },
-        { key: "Closed", text: "Closed" },
-      ];
-
-      const result = CheckDeprecatedDropdownOptions(fieldConfig, activeOptions, "Legacy");
-
-      expect(result).toHaveLength(1);
-      expect(result[0].key).toBe("Legacy");
-      expect(result[0].disabled).toBe(true);
-    });
-
-    it("returns deprecated options for multiselect when some values are deprecated", () => {
-      const fieldConfig: IFieldConfig = {
-        component: HookInlineFormConstants.multiselect,
-        label: "Tags",
-        deprecatedDropdownOptions: [
-          { oldVal: "oldTag1" },
-          { oldVal: "oldTag2" },
-        ],
-      };
-
-      const activeOptions = [
-        { key: "tag1", text: "Tag 1" },
-        { key: "tag2", text: "Tag 2" },
-      ];
-
-      const result = CheckDeprecatedDropdownOptions(
-        fieldConfig,
-        activeOptions,
-        ["tag1", "oldTag1", "oldTag2"]
-      );
-
-      expect(result).toHaveLength(2);
-      expect(result[0].key).toBe("oldTag1");
-      expect(result[0].disabled).toBe(true);
-      expect(result[1].key).toBe("oldTag2");
-      expect(result[1].disabled).toBe(true);
-    });
-
-    it("returns empty array for multiselect when no values are deprecated", () => {
-      const fieldConfig: IFieldConfig = {
-        component: HookInlineFormConstants.multiselect,
-        label: "Tags",
-        deprecatedDropdownOptions: [
-          { oldVal: "oldTag" },
-        ],
-      };
-
-      const activeOptions = [
-        { key: "tag1", text: "Tag 1" },
-        { key: "tag2", text: "Tag 2" },
-      ];
-
-      const result = CheckDeprecatedDropdownOptions(
-        fieldConfig,
-        activeOptions,
-        ["tag1", "tag2"]
-      );
-
-      expect(result).toEqual([]);
-    });
-
-    it("returns empty array for non-dropdown/multiselect component types", () => {
-      const fieldConfig: IFieldConfig = {
-        component: "Textbox",
-        label: "Name",
-        deprecatedDropdownOptions: [
-          { oldVal: "old" },
-        ],
-      };
-
-      const result = CheckDeprecatedDropdownOptions(fieldConfig, [], "old");
-
-      expect(result).toEqual([]);
-    });
-  });
-
   describe("CheckValidDropdownOptions", () => {
-    it("clears dropdown value when it is not in options and not deprecated", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+    it("clears dropdown value when it is not in options", () => {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         status: {
-          component: HookInlineFormConstants.dropdown,
-          dropdownOptions: [
-            { key: "Active", text: "Active" },
-            { key: "Closed", text: "Closed" },
+          type: "Dropdown",
+          options: [
+            { value: "Active", label: "Active" },
+            { value: "Closed", label: "Closed" },
           ],
         },
-      };
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        status: { component: HookInlineFormConstants.dropdown, label: "Status" },
       };
       const formValues: IEntityData = { status: "Invalid" };
       const setValue = vi.fn();
 
-      CheckValidDropdownOptions(fieldRules, fieldConfigs, formValues, setValue);
+      CheckValidDropdownOptions(fieldStates, formValues, setValue);
 
       expect(setValue).toHaveBeenCalledWith("status", null, { shouldDirty: false });
     });
 
     it("does not clear dropdown value when it is in options", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         status: {
-          component: HookInlineFormConstants.dropdown,
-          dropdownOptions: [
-            { key: "Active", text: "Active" },
-            { key: "Closed", text: "Closed" },
+          type: "Dropdown",
+          options: [
+            { value: "Active", label: "Active" },
+            { value: "Closed", label: "Closed" },
           ],
         },
-      };
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        status: { component: HookInlineFormConstants.dropdown, label: "Status" },
       };
       const formValues: IEntityData = { status: "Active" };
       const setValue = vi.fn();
 
-      CheckValidDropdownOptions(fieldRules, fieldConfigs, formValues, setValue);
-
-      expect(setValue).not.toHaveBeenCalled();
-    });
-
-    it("does not clear dropdown value when it is deprecated", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        status: {
-          component: HookInlineFormConstants.dropdown,
-          dropdownOptions: [
-            { key: "Active", text: "Active" },
-          ],
-        },
-      };
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        status: {
-          component: HookInlineFormConstants.dropdown,
-          label: "Status",
-          deprecatedDropdownOptions: [{ oldVal: "Legacy" }],
-        },
-      };
-      const formValues: IEntityData = { status: "Legacy" };
-      const setValue = vi.fn();
-
-      CheckValidDropdownOptions(fieldRules, fieldConfigs, formValues, setValue);
-
+      CheckValidDropdownOptions(fieldStates, formValues, setValue);
       expect(setValue).not.toHaveBeenCalled();
     });
 
     it("filters multiselect values to valid options", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         tags: {
-          component: HookInlineFormConstants.multiselect,
-          dropdownOptions: [
-            { key: "a", text: "A" },
-            { key: "b", text: "B" },
+          type: "Multiselect",
+          options: [
+            { value: "a", label: "A" },
+            { value: "b", label: "B" },
           ],
         },
-      };
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        tags: { component: HookInlineFormConstants.multiselect, label: "Tags" },
       };
       const formValues: IEntityData = { tags: ["a", "b", "invalid"] };
       const setValue = vi.fn();
 
-      CheckValidDropdownOptions(fieldRules, fieldConfigs, formValues, setValue);
-
+      CheckValidDropdownOptions(fieldStates, formValues, setValue);
       expect(setValue).toHaveBeenCalledWith("tags", ["a", "b"], { shouldDirty: false });
     });
 
     it("does not modify multiselect when all values are valid", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         tags: {
-          component: HookInlineFormConstants.multiselect,
-          dropdownOptions: [
-            { key: "a", text: "A" },
-            { key: "b", text: "B" },
+          type: "Multiselect",
+          options: [
+            { value: "a", label: "A" },
+            { value: "b", label: "B" },
           ],
         },
-      };
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        tags: { component: HookInlineFormConstants.multiselect, label: "Tags" },
       };
       const formValues: IEntityData = { tags: ["a", "b"] };
       const setValue = vi.fn();
 
-      CheckValidDropdownOptions(fieldRules, fieldConfigs, formValues, setValue);
-
+      CheckValidDropdownOptions(fieldStates, formValues, setValue);
       expect(setValue).not.toHaveBeenCalled();
     });
 
-    it("does nothing when fieldRules is empty", () => {
+    it("does nothing when fieldStates is empty", () => {
       const setValue = vi.fn();
-      CheckValidDropdownOptions({}, {}, { status: "X" }, setValue);
+      CheckValidDropdownOptions({}, { status: "X" }, setValue);
       expect(setValue).not.toHaveBeenCalled();
     });
 
     it("does nothing when formValues is empty", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
-        status: { component: HookInlineFormConstants.dropdown, dropdownOptions: [] },
+      const fieldStates: Record<string, IRuntimeFieldState> = {
+        status: { type: "Dropdown", options: [] },
       };
       const setValue = vi.fn();
-      CheckValidDropdownOptions(fieldRules, {}, {}, setValue);
+      CheckValidDropdownOptions(fieldStates, {}, setValue);
       expect(setValue).not.toHaveBeenCalled();
     });
 
     it("handles null form value for dropdown", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         status: {
-          component: HookInlineFormConstants.dropdown,
-          dropdownOptions: [{ key: "Active", text: "Active" }],
+          type: "Dropdown",
+          options: [{ value: "Active", label: "Active" }],
         },
-      };
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        status: { component: HookInlineFormConstants.dropdown, label: "Status" },
       };
       const formValues: IEntityData = { status: null };
       const setValue = vi.fn();
 
-      CheckValidDropdownOptions(fieldRules, fieldConfigs, formValues, setValue);
-
+      CheckValidDropdownOptions(fieldStates, formValues, setValue);
       expect(setValue).not.toHaveBeenCalled();
     });
 
-    it("handles StatusDropdown component type", () => {
-      const fieldRules: Dictionary<IBusinessRule> = {
+    it("handles StatusDropdown type", () => {
+      const fieldStates: Record<string, IRuntimeFieldState> = {
         status: {
-          component: HookInlineFormConstants.statusDropdown,
-          dropdownOptions: [{ key: "Open", text: "Open" }],
+          type: "StatusDropdown",
+          options: [{ value: "Open", label: "Open" }],
         },
-      };
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        status: { component: HookInlineFormConstants.statusDropdown, label: "Status" },
       };
       const formValues: IEntityData = { status: "Missing" };
       const setValue = vi.fn();
 
-      CheckValidDropdownOptions(fieldRules, fieldConfigs, formValues, setValue);
-
+      CheckValidDropdownOptions(fieldStates, formValues, setValue);
       expect(setValue).toHaveBeenCalledWith("status", null, { shouldDirty: false });
     });
   });
 
-  describe("CombineSchemaConfig", () => {
-    it("merges defaultValue from schema into field configs", () => {
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        status: { component: "Dropdown", label: "Status" },
-      };
-      const schemaConfigs = {
-        status: { defaultValue: "Open" },
-      };
-
-      const result = CombineSchemaConfig(fieldConfigs, schemaConfigs);
-
-      expect(result.status.defaultValue).toBe("Open");
+  describe("SortOptions", () => {
+    it("sorts options alphabetically by label", () => {
+      const options: IOption[] = [
+        { value: "C", label: "Charlie" },
+        { value: "A", label: "Alpha" },
+        { value: "B", label: "Bravo" },
+      ];
+      const result = SortOptions(options);
+      expect(result[0].label).toBe("Alpha");
+      expect(result[1].label).toBe("Bravo");
+      expect(result[2].label).toBe("Charlie");
     });
 
-    it("merges dropdown values from schema", () => {
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        status: { component: "Dropdown", label: "Status" },
-      };
-      const schemaConfigs = {
-        status: {
-          values: [
-            { key: "Open", text: "Open" },
-            { key: "Closed", text: "Closed" },
-          ],
-        },
-      };
-
-      const result = CombineSchemaConfig(fieldConfigs, schemaConfigs);
-
-      expect(result.status.dropdownOptions).toHaveLength(2);
+    it("returns empty array for empty input", () => {
+      const result = SortOptions([]);
+      expect(result).toEqual([]);
     });
 
-    it("sets empty dropdownOptions when schema has no values", () => {
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        name: { component: "Textbox", label: "Name" },
-      };
-      const schemaConfigs = {
-        name: {},
-      };
-
-      const result = CombineSchemaConfig(fieldConfigs, schemaConfigs);
-
-      expect(result.name.dropdownOptions).toEqual([]);
-    });
-
-    it("handles boolean defaultValue wrapped in braces", () => {
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        active: { component: "Toggle", label: "Active" },
-      };
-      const schemaConfigs = {
-        active: { defaultValue: "{true}", type: ["boolean"] },
-      };
-
-      const result = CombineSchemaConfig(fieldConfigs, schemaConfigs);
-
-      expect(result.active.defaultValue).toBe(true);
-    });
-
-    it("handles number defaultValue wrapped in braces", () => {
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        count: { component: "Number", label: "Count" },
-      };
-      const schemaConfigs = {
-        count: { defaultValue: "{42}", type: ["number"] },
-      };
-
-      const result = CombineSchemaConfig(fieldConfigs, schemaConfigs);
-
-      expect(result.count.defaultValue).toBe(42);
-    });
-
-    it("handles string defaultValue wrapped in braces", () => {
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        name: { component: "Textbox", label: "Name" },
-      };
-      const schemaConfigs = {
-        name: { defaultValue: "{'hello'}", type: ["string"] },
-      };
-
-      const result = CombineSchemaConfig(fieldConfigs, schemaConfigs);
-
-      expect(result.name.defaultValue).toBe("hello");
-    });
-
-    it("merges dependency rules from schema", () => {
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        country: { component: "Dropdown", label: "Country" },
-        region: { component: "Dropdown", label: "Region" },
-      };
-      const schemaConfigs = {
-        country: {},
-        region: {
-          depdendencyRules: [{
-            conditions: [{ fieldName: "country", fieldValue: "US" }],
-            dependencyValues: ["East", "West"],
-          }],
-        },
-      };
-
-      const result = CombineSchemaConfig(fieldConfigs, schemaConfigs);
-
-      expect(result.country.dropdownDependencies).toBeDefined();
-      expect(result.country.dropdownDependencies!["US"]["region"]).toEqual(["East", "West"]);
-    });
-
-    it("merges deprecatedOptions from schema", () => {
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        status: { component: "Dropdown", label: "Status" },
-      };
-      const schemaConfigs = {
-        status: {
-          deprecatedOptions: [{ oldVal: "Legacy", newVal: "Active" }],
-        },
-      };
-
-      const result = CombineSchemaConfig(fieldConfigs, schemaConfigs);
-
-      expect(result.status.deprecatedDropdownOptions).toHaveLength(1);
-      expect(result.status.deprecatedDropdownOptions![0].oldVal).toBe("Legacy");
-    });
-
-    it("does not mutate original fieldConfigs", () => {
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        name: { component: "Textbox", label: "Name" },
-      };
-      const schemaConfigs = {
-        name: { defaultValue: "New" },
-      };
-
-      CombineSchemaConfig(fieldConfigs, schemaConfigs);
-
-      expect(fieldConfigs.name.defaultValue).toBeUndefined();
+    it("does not mutate the original array", () => {
+      const options: IOption[] = [
+        { value: "B", label: "Bravo" },
+        { value: "A", label: "Alpha" },
+      ];
+      const original = [...options];
+      SortOptions(options);
+      expect(options).toEqual(original);
     });
   });
 
-  describe("ExecuteValueFunction", () => {
-    it("delegates to the value function registry", () => {
-      const result = ExecuteValueFunction("createdDate", "setDate");
+  describe("ExecuteComputedValue", () => {
+    it("evaluates expression via the expression engine", () => {
+      const result = ExecuteComputedValue(
+        "$values.a + $values.b",
+        { a: 3, b: 7 }
+      );
+      expect(result).toBe(10);
+    });
+
+    it("calls value function via $fn syntax", () => {
+      const result = ExecuteComputedValue("$fn.setDate()", {}, "createdDate");
       expect(result).toBeInstanceOf(Date);
     });
 
     it("returns undefined for unknown value function", () => {
-      const result = ExecuteValueFunction("field", "unknownFunction");
+      const result = ExecuteComputedValue("$fn.unknownFunction()", {});
       expect(result).toBeUndefined();
     });
   });
 
-  describe("InitOnEditBusinessRules", () => {
-    it("returns onLoadRules and initEntityData", () => {
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        name: { component: "Textbox", required: true, label: "Name" },
+  describe("InitOnEditFormState", () => {
+    it("returns formState and initEntityData", () => {
+      const fields: Record<string, IFieldConfig> = {
+        name: { type: "Textbox", required: true, label: "Name" },
       };
       const defaultValues: IEntityData = { name: "Test" };
-      const mockInitBusinessRules = vi.fn().mockReturnValue({
-        fieldRules: { name: { component: "Textbox", required: true } },
-        order: ["name"],
+      const mockInitFormState = vi.fn().mockReturnValue({
+        fieldStates: { name: { type: "Textbox", required: true } },
+        fieldOrder: ["name"],
       });
 
-      const result = InitOnEditBusinessRules(
+      const result = InitOnEditFormState(
         "testConfig",
-        fieldConfigs,
+        fields,
         defaultValues,
         false,
-        mockInitBusinessRules
+        mockInitFormState
       );
 
       expect(result.initEntityData).toBe(defaultValues);
-      expect(result.onLoadRules).toBeDefined();
-      expect(mockInitBusinessRules).toHaveBeenCalledWith(
-        "testConfig", defaultValues, fieldConfigs, false
+      expect(result.formState).toBeDefined();
+      expect(mockInitFormState).toHaveBeenCalledWith(
+        "testConfig", defaultValues, fields, false
       );
     });
 
     it("passes areAllFieldsReadonly flag", () => {
-      const fieldConfigs: Dictionary<IFieldConfig> = {
-        name: { component: "Textbox", label: "Name" },
+      const fields: Record<string, IFieldConfig> = {
+        name: { type: "Textbox", label: "Name" },
       };
       const defaultValues: IEntityData = { name: "Test" };
-      const mockInitBusinessRules = vi.fn().mockReturnValue({
-        fieldRules: {},
-        order: [],
+      const mockInitFormState = vi.fn().mockReturnValue({
+        fieldStates: {},
+        fieldOrder: [],
       });
 
-      InitOnEditBusinessRules("config", fieldConfigs, defaultValues, true, mockInitBusinessRules);
+      InitOnEditFormState("config", fields, defaultValues, true, mockInitFormState);
 
-      expect(mockInitBusinessRules).toHaveBeenCalledWith(
-        "config", defaultValues, fieldConfigs, true
+      expect(mockInitFormState).toHaveBeenCalledWith(
+        "config", defaultValues, fields, true
       );
     });
   });

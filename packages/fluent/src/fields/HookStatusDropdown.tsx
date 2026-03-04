@@ -1,4 +1,4 @@
-import { IHookFieldSharedProps, Dictionary } from "@bghcore/dynamic-forms-core";
+import { IFieldProps, Dictionary } from "@bghcore/dynamic-forms-core";
 import { Dropdown, Option } from "@fluentui/react-components";
 import type { OptionOnSelectData } from "@fluentui/react-components";
 import React from "react";
@@ -12,8 +12,8 @@ export interface IHookStatusDropdownProps {
   statusColors?: Dictionary<string>;
 }
 
-const HookStatusDropdown = (props: IHookFieldSharedProps<IHookStatusDropdownProps>) => {
-  const { fieldName, programName, entityType, entityId, value, readOnly, error, meta, dropdownOptions, setFieldValue } = props;
+const HookStatusDropdown = (props: IFieldProps<IHookStatusDropdownProps>) => {
+  const { fieldName, programName, entityType, entityId, value, readOnly, error, config, options, setFieldValue } = props;
 
   const onOptionSelect = (_: unknown, data: OptionOnSelectData) => {
     setFieldValue(fieldName, data.optionValue);
@@ -21,7 +21,7 @@ const HookStatusDropdown = (props: IHookFieldSharedProps<IHookStatusDropdownProp
 
   return readOnly ? (
     <div className="hook-read-only-status-dropdown" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-      <StatusColor statusColors={meta?.statusColors as Dictionary<string>} status={value as string} />
+      <StatusColor statusColors={config?.statusColors as Dictionary<string>} status={value as string} />
       <ReadOnlyText fieldName={fieldName} value={value as string} />
     </div>
   ) : (
@@ -31,10 +31,10 @@ const HookStatusDropdown = (props: IHookFieldSharedProps<IHookStatusDropdownProp
       programName={programName}
       entityType={entityType}
       entityId={entityId}
-      dropdownOptions={dropdownOptions}
+      dropdownOptions={options}
       status={value as string}
       onOptionSelect={onOptionSelect}
-      meta={meta as unknown as Record<string, unknown>}
+      meta={config as unknown as Record<string, unknown>}
     />
   );
 };

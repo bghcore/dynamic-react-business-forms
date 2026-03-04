@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { HookFormErrorBoundary } from "../../components/HookFormErrorBoundary";
+import { FormErrorBoundary } from "../../components/HookFormErrorBoundary";
 
 // Component that throws on demand
 const ThrowingComponent = ({ shouldThrow }: { shouldThrow: boolean }) => {
@@ -11,7 +11,7 @@ const ThrowingComponent = ({ shouldThrow }: { shouldThrow: boolean }) => {
   return <div data-testid="child">Child content</div>;
 };
 
-describe("HookFormErrorBoundary", () => {
+describe("FormErrorBoundary", () => {
   // Suppress React error boundary console.error noise during tests
   let originalConsoleError: typeof console.error;
   beforeEach(() => {
@@ -24,9 +24,9 @@ describe("HookFormErrorBoundary", () => {
 
   it("renders children normally when no error occurs", () => {
     render(
-      <HookFormErrorBoundary>
+      <FormErrorBoundary>
         <ThrowingComponent shouldThrow={false} />
-      </HookFormErrorBoundary>
+      </FormErrorBoundary>
     );
 
     expect(screen.getByTestId("child")).toBeInTheDocument();
@@ -35,9 +35,9 @@ describe("HookFormErrorBoundary", () => {
 
   it("catches error and shows default fallback", () => {
     render(
-      <HookFormErrorBoundary>
+      <FormErrorBoundary>
         <ThrowingComponent shouldThrow={true} />
-      </HookFormErrorBoundary>
+      </FormErrorBoundary>
     );
 
     expect(screen.queryByTestId("child")).not.toBeInTheDocument();
@@ -55,9 +55,9 @@ describe("HookFormErrorBoundary", () => {
     );
 
     render(
-      <HookFormErrorBoundary fallback={customFallback}>
+      <FormErrorBoundary fallback={customFallback}>
         <ThrowingComponent shouldThrow={true} />
-      </HookFormErrorBoundary>
+      </FormErrorBoundary>
     );
 
     expect(screen.queryByTestId("child")).not.toBeInTheDocument();
@@ -77,9 +77,9 @@ describe("HookFormErrorBoundary", () => {
     };
 
     const { rerender } = render(
-      <HookFormErrorBoundary>
+      <FormErrorBoundary>
         <ConditionalThrower />
-      </HookFormErrorBoundary>
+      </FormErrorBoundary>
     );
 
     // Should show error state
@@ -101,9 +101,9 @@ describe("HookFormErrorBoundary", () => {
     const onErrorCallback = vi.fn();
 
     render(
-      <HookFormErrorBoundary onError={onErrorCallback}>
+      <FormErrorBoundary onError={onErrorCallback}>
         <ThrowingComponent shouldThrow={true} />
-      </HookFormErrorBoundary>
+      </FormErrorBoundary>
     );
 
     expect(onErrorCallback).toHaveBeenCalledTimes(1);

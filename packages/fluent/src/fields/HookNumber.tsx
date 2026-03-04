@@ -1,11 +1,11 @@
-import { IHookFieldSharedProps, isNull } from "@bghcore/dynamic-forms-core";
+import { IFieldProps, isNull } from "@bghcore/dynamic-forms-core";
 import { Input } from "@fluentui/react-components";
 import React from "react";
 import { ReadOnlyText } from "../components/ReadOnlyText";
 import { FieldClassName, GetFieldDataTestId } from "../helpers";
 
-const HookNumber = (props: IHookFieldSharedProps<{}>) => {
-  const { fieldName, programName, entityType, entityId, value, readOnly, meta, error, setFieldValue } = props;
+const HookNumber = (props: IFieldProps<{}>) => {
+  const { fieldName, programName, entityType, entityId, value, readOnly, config, error, setFieldValue } = props;
 
   const onChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const number = Number(event.target.value);

@@ -1,4 +1,4 @@
-import { IHookFieldSharedProps } from "@bghcore/dynamic-forms-core";
+import { IFieldProps } from "@bghcore/dynamic-forms-core";
 import { Slider } from "@fluentui/react-components";
 import React from "react";
 import { ReadOnlyText } from "../components/ReadOnlyText";
@@ -10,8 +10,8 @@ interface IHookSliderProps {
   step?: number;
 }
 
-const HookSlider = (props: IHookFieldSharedProps<IHookSliderProps>) => {
-  const { fieldName, programName, entityType, entityId, value, readOnly, meta, error, setFieldValue } = props;
+const HookSlider = (props: IFieldProps<IHookSliderProps>) => {
+  const { fieldName, programName, entityType, entityId, value, readOnly, config, error, setFieldValue } = props;
 
   const onChange = (_: unknown, data: { value: number }) => {
     setFieldValue(fieldName, data.value);
@@ -24,9 +24,9 @@ const HookSlider = (props: IHookFieldSharedProps<IHookSliderProps>) => {
       className={FieldClassName("hook-slider", error)}
       value={value as number}
       onChange={onChange}
-      max={meta?.max}
-      min={meta?.min}
-      step={meta?.step}
+      max={config?.max}
+      min={config?.min}
+      step={config?.step}
       data-testid={GetFieldDataTestId(fieldName, programName, entityType, entityId)}
     />
   );

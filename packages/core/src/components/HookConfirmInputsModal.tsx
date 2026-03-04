@@ -1,46 +1,37 @@
-import { Dictionary } from "../utils";
 import React from "react";
 import { useFormContext } from "react-hook-form";
 import { IFieldConfig } from "../types/IFieldConfig";
-import { UseBusinessRulesContext } from "../providers/BusinessRulesProvider";
-import { HookInlineFormStrings } from "../strings";
-import HookRenderField from "./HookRenderField";
+import { UseRulesEngineContext } from "../providers/BusinessRulesProvider";
+import { FormStrings } from "../strings";
+import RenderField from "./HookRenderField";
 
-interface IHookConfirmInputsModalProps {
+interface IConfirmInputsModalProps {
   isOpen?: boolean;
   configName: string;
   entityId?: string;
   entityType?: string;
   programName?: string;
-  fieldConfigs: Dictionary<IFieldConfig>;
+  fields: Record<string, IFieldConfig>;
   confirmInputFields: string[];
   saveConfirmInputFields: () => void;
   cancelConfirmInputFields: () => void;
-  /** Optional custom dialog renderer. If not provided, uses native <dialog>. */
   renderDialog?: (props: { isOpen: boolean; onSave: () => void; onCancel: () => void; children: React.ReactNode }) => React.JSX.Element;
 }
 
-/** Returns all focusable elements inside a container */
 function getFocusableElements(container: HTMLElement): HTMLElement[] {
   const selector = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
   return Array.from(container.querySelectorAll<HTMLElement>(selector));
 }
 
-const HookConfirmInputsModal = (props: IHookConfirmInputsModalProps) => {
+const ConfirmInputsModal = (props: IConfirmInputsModalProps) => {
   const {
-    isOpen,
-    configName,
-    entityId,
-    entityType,
-    programName,
-    fieldConfigs,
-    confirmInputFields,
-    saveConfirmInputFields,
-    cancelConfirmInputFields,
-    renderDialog
+    isOpen, configName, entityId, entityType, programName,
+    fields, confirmInputFields, saveConfirmInputFields,
+    cancelConfirmInputFields, renderDialog,
   } = props;
+
   const { setValue, trigger } = useFormContext();
-  const { businessRules } = UseBusinessRulesContext();
+  const { rulesState } = UseRulesEngineContext();
 
   const dialogRef = React.useRef<HTMLDialogElement>(null);
   const previouslyFocusedRef = React.useRef<Element | null>(null);
@@ -48,62 +39,34 @@ const HookConfirmInputsModal = (props: IHookConfirmInputsModalProps) => {
 
   React.useEffect(() => {
     if (isOpen && dialogRef.current && !dialogRef.current.open) {
-      // Save the currently focused element before opening
       previouslyFocusedRef.current = document.activeElement;
       dialogRef.current.showModal();
-      // Focus the save button (first actionable button) when modal opens
-      if (saveButtonRef.current) {
-        saveButtonRef.current.focus();
-      }
+      saveButtonRef.current?.focus();
     } else if (!isOpen && dialogRef.current?.open) {
       dialogRef.current.close();
-      // Restore focus to the previously focused element
-      if (previouslyFocusedRef.current && previouslyFocusedRef.current instanceof HTMLElement) {
-        previouslyFocusedRef.current.focus();
-      }
+      if (previouslyFocusedRef.current instanceof HTMLElement) previouslyFocusedRef.current.focus();
       previouslyFocusedRef.current = null;
     }
   }, [isOpen]);
 
-  // Handle Escape key to close the modal (native <dialog> handles this for showModal,
-  // but we also need to run our cancel logic)
   React.useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-
-    const handleCancel = (e: Event) => {
-      e.preventDefault();
-      cancelConfirmInputFields();
-    };
-
+    const handleCancel = (e: Event) => { e.preventDefault(); cancelConfirmInputFields(); };
     dialog.addEventListener("cancel", handleCancel);
-    return () => {
-      dialog.removeEventListener("cancel", handleCancel);
-    };
+    return () => { dialog.removeEventListener("cancel", handleCancel); };
   }, [cancelConfirmInputFields]);
 
-  // Focus trap: wrap Tab navigation within the dialog
   const handleKeyDown = React.useCallback((e: React.KeyboardEvent<HTMLDialogElement>) => {
     if (e.key !== "Tab" || !dialogRef.current) return;
-
     const focusableElements = getFocusableElements(dialogRef.current);
     if (focusableElements.length === 0) return;
-
-    const firstElement = focusableElements[0];
-    const lastElement = focusableElements[focusableElements.length - 1];
-
+    const first = focusableElements[0];
+    const last = focusableElements[focusableElements.length - 1];
     if (e.shiftKey) {
-      // Shift+Tab: if on first element, wrap to last
-      if (document.activeElement === firstElement) {
-        e.preventDefault();
-        lastElement.focus();
-      }
+      if (document.activeElement === first) { e.preventDefault(); last.focus(); }
     } else {
-      // Tab: if on last element, wrap to first
-      if (document.activeElement === lastElement) {
-        e.preventDefault();
-        firstElement.focus();
-      }
+      if (document.activeElement === last) { e.preventDefault(); first.focus(); }
     }
   }, []);
 
@@ -113,39 +76,33 @@ const HookConfirmInputsModal = (props: IHookConfirmInputsModalProps) => {
   };
 
   const content = (
-    <div className="hook-inline-form-wrapper">
-      <div className="hook-inline-form-container">
-        <form className="hook-inline-form modal">
-          {confirmInputFields ? (
-            confirmInputFields.map(confirmInputField => {
-              const { component, dropdownOptions, validations } = businessRules.configRules[configName].fieldRules[
-                confirmInputField
-              ];
-              const fieldConfig = fieldConfigs[confirmInputField];
-              const { label, hideOnCreate, meta } = fieldConfig;
-              return (
-                <HookRenderField
-                  key={`${confirmInputField}-${entityId}-modal`}
-                  fieldName={confirmInputField}
-                  entityId={entityId}
-                  entityType={entityType}
-                  programName={programName}
-                  component={component ?? ""}
-                  required
-                  dropdownOptions={dropdownOptions}
-                  validations={validations}
-                  isManualSave
-                  setFieldValue={setValueFunctionFieldValue}
-                  label={label}
-                  skipLayoutReadOnly
-                  hideOnCreate={hideOnCreate}
-                  meta={meta}
-                />
-              );
-            })
-          ) : (
-            <></>
-          )}
+    <div className="dynamic-form-wrapper">
+      <div className="dynamic-form-container">
+        <form className="dynamic-form modal">
+          {confirmInputFields?.map(confirmInputField => {
+            const fieldState = rulesState.configs[configName]?.fieldStates[confirmInputField];
+            const fieldConfig = fields[confirmInputField];
+            if (!fieldState || !fieldConfig) return null;
+            return (
+              <RenderField
+                key={`${confirmInputField}-${entityId}-modal`}
+                fieldName={confirmInputField}
+                entityId={entityId}
+                entityType={entityType}
+                programName={programName}
+                type={fieldState.type ?? ""}
+                required
+                options={fieldState.options}
+                validate={fieldState.validate}
+                isManualSave
+                setFieldValue={setValueFunctionFieldValue}
+                label={fieldConfig.label}
+                skipLayoutReadOnly
+                hideOnCreate={fieldConfig.hideOnCreate}
+                config={fieldConfig.config}
+              />
+            );
+          })}
         </form>
       </div>
     </div>
@@ -156,19 +113,14 @@ const HookConfirmInputsModal = (props: IHookConfirmInputsModalProps) => {
   }
 
   return (
-    <dialog
-      ref={dialogRef}
-      className="hook-inline-form-modal"
-      aria-label={HookInlineFormStrings.confirm}
-      onKeyDown={handleKeyDown}
-    >
+    <dialog ref={dialogRef} className="dynamic-form-modal" aria-label={FormStrings.confirm} onKeyDown={handleKeyDown}>
       {content}
-      <div className="hook-inline-form-modal-actions">
-        <button ref={saveButtonRef} onClick={saveConfirmInputFields}>{HookInlineFormStrings.save}</button>
-        <button onClick={cancelConfirmInputFields}>{HookInlineFormStrings.cancel}</button>
+      <div className="dynamic-form-modal-actions">
+        <button ref={saveButtonRef} onClick={saveConfirmInputFields}>{FormStrings.save}</button>
+        <button onClick={cancelConfirmInputFields}>{FormStrings.cancel}</button>
       </div>
     </dialog>
   );
 };
 
-export default HookConfirmInputsModal;
+export default ConfirmInputsModal;

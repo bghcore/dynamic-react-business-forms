@@ -1,37 +1,33 @@
 import React from "react";
 import { useFieldArray, useFormContext } from "react-hook-form";
-import { IFieldArrayConfig } from "../types/IFieldArrayConfig";
+import { IFieldConfig } from "../types/IFieldConfig";
 
-export interface IHookFieldArrayProps {
+export interface IFieldArrayProps {
   fieldName: string;
-  config: IFieldArrayConfig;
+  config: IFieldConfig;
   renderItem: (itemFieldNames: string[], index: number, remove: () => void) => React.ReactNode;
   renderAddButton?: (append: () => void, canAdd: boolean) => React.ReactNode;
 }
 
-export const HookFieldArray: React.FC<IHookFieldArrayProps> = (props) => {
+export const FieldArray: React.FC<IFieldArrayProps> = (props) => {
   const { fieldName, config, renderItem, renderAddButton } = props;
   const { control } = useFormContext();
-  const { fields, append, remove, move } = useFieldArray({ control, name: fieldName });
+  const { fields, append, remove } = useFieldArray({ control, name: fieldName });
 
   const canAdd = config.maxItems ? fields.length < config.maxItems : true;
   const canRemove = config.minItems ? fields.length > config.minItems : true;
 
   const handleAppend = React.useCallback(() => {
-    if (canAdd) {
-      append(config.defaultItem ?? {});
-    }
-  }, [canAdd, append, config.defaultItem]);
+    if (canAdd) append({});
+  }, [canAdd, append]);
 
   const handleRemove = React.useCallback((index: number) => {
-    if (canRemove) {
-      remove(index);
-    }
+    if (canRemove) remove(index);
   }, [canRemove, remove]);
 
   const itemFieldNames = React.useMemo(
-    () => Object.keys(config.itemFields),
-    [config.itemFields]
+    () => config.items ? Object.keys(config.items) : [],
+    [config.items]
   );
 
   return (
@@ -49,3 +45,4 @@ export const HookFieldArray: React.FC<IHookFieldArrayProps> = (props) => {
     </div>
   );
 };
+

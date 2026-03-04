@@ -1,4 +1,4 @@
-import { IHookFieldSharedProps } from "@bghcore/dynamic-forms-core";
+import { IFieldProps } from "@bghcore/dynamic-forms-core";
 import React from "react";
 import { formatDateTime } from "../../helpers";
 
@@ -7,12 +7,12 @@ interface IHookReadOnlyDateTimeProps {
   hidetimeStamp?: boolean;
 }
 
-const HookReadOnlyDateTime = (props: IHookFieldSharedProps<IHookReadOnlyDateTimeProps>) => {
-  const { meta, value } = props;
+const HookReadOnlyDateTime = (props: IFieldProps<IHookReadOnlyDateTimeProps>) => {
+  const { config, value } = props;
   return (
     <>{value ? (
       <span className="hook-read-only-date-time">
-        {formatDateTime(value as string, { hideTimestamp: meta?.hidetimeStamp })}
+        {formatDateTime(value as string, { hideTimestamp: config?.hidetimeStamp })}
       </span>
     ) : <>-</>}</>
   );

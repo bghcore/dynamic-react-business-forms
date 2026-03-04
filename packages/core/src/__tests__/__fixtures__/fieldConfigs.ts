@@ -1,432 +1,409 @@
-import { Dictionary } from "../../utils";
 import { IFieldConfig } from "../../types/IFieldConfig";
+import { IFormConfig } from "../../types/IFormConfig";
 
-/** Simple text field with no dependencies */
-export const simpleTextFieldConfigs: Dictionary<IFieldConfig> = {
+/** Simple text field with no rules */
+export const simpleTextFieldConfigs: Record<string, IFieldConfig> = {
   name: {
-    component: "Textbox",
+    type: "Textbox",
     required: true,
     label: "Name",
   },
   description: {
-    component: "Textbox",
+    type: "Textbox",
     required: false,
     label: "Description",
   },
 };
 
-/** Fields with a single dependency: when status="Active", priority becomes required */
-export const singleDependencyConfigs: Dictionary<IFieldConfig> = {
+/** Fields with a single rule: when status="Active", priority becomes required */
+export const singleDependencyConfigs: Record<string, IFieldConfig> = {
   status: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: true,
     label: "Status",
-    dropdownOptions: [
-      { key: "Active", text: "Active" },
-      { key: "Inactive", text: "Inactive" },
+    options: [
+      { value: "Active", label: "Active" },
+      { value: "Inactive", label: "Inactive" },
     ],
-    dependencies: {
-      Active: {
-        priority: { required: true },
+    rules: [
+      {
+        id: "status-active",
+        when: { field: "status", operator: "equals", value: "Active" },
+        then: { fields: { priority: { required: true } } },
+        else: { fields: { priority: { required: false, hidden: true } } },
       },
-      Inactive: {
-        priority: { required: false, hidden: true },
-      },
-    },
+    ],
   },
   priority: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: false,
     label: "Priority",
-    dropdownOptions: [
-      { key: "High", text: "High" },
-      { key: "Medium", text: "Medium" },
-      { key: "Low", text: "Low" },
+    options: [
+      { value: "High", label: "High" },
+      { value: "Medium", label: "Medium" },
+      { value: "Low", label: "Low" },
     ],
   },
 };
 
-/** Fields with combo (AND) rules: notes required only when status=Active AND type=Bug */
-export const comboDependencyConfigs: Dictionary<IFieldConfig> = {
+/** Fields with AND rule: notes required only when status=Active AND type=Bug */
+export const comboDependencyConfigs: Record<string, IFieldConfig> = {
   status: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: true,
     label: "Status",
-    dropdownOptions: [
-      { key: "Active", text: "Active" },
-      { key: "Closed", text: "Closed" },
+    options: [
+      { value: "Active", label: "Active" },
+      { value: "Closed", label: "Closed" },
     ],
   },
   type: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: true,
     label: "Type",
-    dropdownOptions: [
-      { key: "Bug", text: "Bug" },
-      { key: "Feature", text: "Feature" },
+    options: [
+      { value: "Bug", label: "Bug" },
+      { value: "Feature", label: "Feature" },
     ],
   },
   notes: {
-    component: "Textbox",
+    type: "Textbox",
     required: false,
     label: "Notes",
-    dependencyRules: {
-      updatedConfig: { required: true },
-      rules: {
-        status: ["Active"],
-        type: ["Bug"],
+    rules: [
+      {
+        id: "combo-active-bug",
+        when: {
+          operator: "and",
+          conditions: [
+            { field: "status", operator: "equals", value: "Active" },
+            { field: "type", operator: "equals", value: "Bug" },
+          ],
+        },
+        then: { required: true },
+        else: { required: false },
       },
-    },
+    ],
   },
 };
 
-/** Fields with dropdown dependencies: region dropdown filtered by country */
-export const dropdownDependencyConfigs: Dictionary<IFieldConfig> = {
+/** Fields with dropdown filtering via rules */
+export const dropdownDependencyConfigs: Record<string, IFieldConfig> = {
   country: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: true,
     label: "Country",
-    dropdownOptions: [
-      { key: "US", text: "US" },
-      { key: "CA", text: "CA" },
+    options: [
+      { value: "US", label: "US" },
+      { value: "CA", label: "CA" },
     ],
-    dropdownDependencies: {
-      US: {
-        region: ["East", "West", "Central"],
+    rules: [
+      {
+        id: "country-us",
+        when: { field: "country", operator: "equals", value: "US" },
+        then: {
+          fields: {
+            region: {
+              options: [
+                { value: "East", label: "East" },
+                { value: "West", label: "West" },
+                { value: "Central", label: "Central" },
+              ],
+            },
+          },
+        },
       },
-      CA: {
-        region: ["Ontario", "Quebec", "BC"],
+      {
+        id: "country-ca",
+        when: { field: "country", operator: "equals", value: "CA" },
+        then: {
+          fields: {
+            region: {
+              options: [
+                { value: "Ontario", label: "Ontario" },
+                { value: "Quebec", label: "Quebec" },
+                { value: "BC", label: "BC" },
+              ],
+            },
+          },
+        },
       },
-    },
+    ],
   },
   region: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: true,
     label: "Region",
-    dropdownOptions: [],
+    options: [],
   },
 };
 
-/** Fields with order dependencies: field order changes based on type value */
-export const orderDependencyConfigs: Dictionary<IFieldConfig> = {
+/** Fields with order rules */
+export const orderDependencyConfigs: Record<string, IFieldConfig> = {
   type: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: true,
     label: "Type",
-    dropdownOptions: [
-      { key: "Bug", text: "Bug" },
-      { key: "Feature", text: "Feature" },
+    options: [
+      { value: "Bug", label: "Bug" },
+      { value: "Feature", label: "Feature" },
     ],
-    orderDependencies: {
-      Bug: ["type", "severity", "steps", "description"],
-      Feature: ["type", "description", "priority"],
-    },
+    rules: [
+      {
+        id: "order-bug",
+        when: { field: "type", operator: "equals", value: "Bug" },
+        then: { fieldOrder: ["type", "severity", "steps", "description"] },
+      },
+      {
+        id: "order-feature",
+        when: { field: "type", operator: "equals", value: "Feature" },
+        then: { fieldOrder: ["type", "description", "priority"] },
+      },
+    ],
   },
   severity: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: false,
     label: "Severity",
-    dropdownOptions: [
-      { key: "Critical", text: "Critical" },
-      { key: "Major", text: "Major" },
-      { key: "Minor", text: "Minor" },
+    options: [
+      { value: "Critical", label: "Critical" },
+      { value: "Major", label: "Major" },
+      { value: "Minor", label: "Minor" },
     ],
   },
-  steps: {
-    component: "Textbox",
-    required: false,
-    label: "Steps to Reproduce",
-  },
-  description: {
-    component: "Textbox",
-    required: false,
-    label: "Description",
-  },
+  steps: { type: "Textbox", required: false, label: "Steps to Reproduce" },
+  description: { type: "Textbox", required: false, label: "Description" },
   priority: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: false,
     label: "Priority",
-    dropdownOptions: [
-      { key: "High", text: "High" },
-      { key: "Low", text: "Low" },
+    options: [
+      { value: "High", label: "High" },
+      { value: "Low", label: "Low" },
     ],
   },
 };
 
 /** Fields with hidden and readonly attributes */
-export const hiddenReadonlyConfigs: Dictionary<IFieldConfig> = {
-  id: {
-    component: "Textbox",
-    required: false,
-    isReadonly: true,
-    label: "ID",
-  },
-  secret: {
-    component: "Textbox",
-    required: false,
-    hidden: true,
-    label: "Secret",
-  },
-  name: {
-    component: "Textbox",
-    required: true,
-    label: "Name",
-  },
+export const hiddenReadonlyConfigs: Record<string, IFieldConfig> = {
+  id: { type: "Textbox", required: false, readOnly: true, label: "ID" },
+  secret: { type: "Textbox", required: false, hidden: true, label: "Secret" },
+  name: { type: "Textbox", required: true, label: "Name" },
 };
 
-/** Field with value function */
-export const valueFunctionConfigs: Dictionary<IFieldConfig> = {
+/** Fields with computed values */
+export const valueFunctionConfigs: Record<string, IFieldConfig> = {
   createdDate: {
-    component: "DateControl",
+    type: "DateControl",
     required: false,
-    isReadonly: true,
-    isValueFunction: true,
-    value: "setDate",
-    onlyOnCreate: true,
+    readOnly: true,
+    computedValue: "$fn.setDate()",
+    computeOnCreateOnly: true,
     label: "Created Date",
   },
   modifiedDate: {
-    component: "DateControl",
+    type: "DateControl",
     required: false,
-    isReadonly: true,
-    isValueFunction: true,
-    value: "setDate",
+    readOnly: true,
+    computedValue: "$fn.setDate()",
     label: "Modified Date",
   },
   name: {
-    component: "Textbox",
+    type: "Textbox",
     required: true,
     label: "Name",
-    dependencies: {
-      "test": {
-        modifiedDate: { isValueFunction: true, value: "setDate" },
-      },
-    },
   },
 };
 
 /** Fields with validations */
-export const validationConfigs: Dictionary<IFieldConfig> = {
+export const validationConfigs: Record<string, IFieldConfig> = {
   email: {
-    component: "Textbox",
+    type: "Textbox",
     required: true,
     label: "Email",
-    validations: ["EmailValidation"],
+    validate: [{ name: "email" }],
   },
   phone: {
-    component: "Textbox",
+    type: "Textbox",
     required: false,
     label: "Phone",
-    validations: ["PhoneNumberValidation"],
+    validate: [{ name: "phone" }],
   },
   website: {
-    component: "Textbox",
+    type: "Textbox",
     required: false,
     label: "Website",
-    validations: ["isValidUrl"],
+    validate: [{ name: "url" }],
   },
 };
 
 /** Fields with confirmInput flag */
-export const confirmInputConfigs: Dictionary<IFieldConfig> = {
+export const confirmInputConfigs: Record<string, IFieldConfig> = {
   trigger: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: true,
     label: "Trigger",
-    dropdownOptions: [
-      { key: "Yes", text: "Yes" },
-      { key: "No", text: "No" },
+    options: [
+      { value: "Yes", label: "Yes" },
+      { value: "No", label: "No" },
     ],
-    dependencies: {
-      Yes: {
-        confirmed: { confirmInput: true },
+    rules: [
+      {
+        when: { field: "trigger", operator: "equals", value: "Yes" },
+        then: { fields: { confirmed: { } } },
       },
-      No: {
-        confirmed: { confirmInput: false },
-      },
-    },
+    ],
   },
   confirmed: {
-    component: "Textbox",
+    type: "Textbox",
     required: false,
-    confirmInput: false,
+    confirmInput: true,
     label: "Confirmed Field",
   },
 };
 
-/** Fields with component swap dependency */
-export const componentSwapConfigs: Dictionary<IFieldConfig> = {
+/** Fields with component swap rule */
+export const componentSwapConfigs: Record<string, IFieldConfig> = {
   mode: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: true,
     label: "Mode",
-    dropdownOptions: [
-      { key: "simple", text: "Simple" },
-      { key: "advanced", text: "Advanced" },
+    options: [
+      { value: "simple", label: "Simple" },
+      { value: "advanced", label: "Advanced" },
     ],
-    dependencies: {
-      simple: {
-        detail: { component: "Textbox" },
+    rules: [
+      {
+        when: { field: "mode", operator: "equals", value: "simple" },
+        then: { fields: { detail: { component: "Textbox" } } },
+        else: { fields: { detail: { component: "PopOutEditor" } } },
       },
-      advanced: {
-        detail: { component: "PopOutEditor" },
-      },
-    },
-  },
-  detail: {
-    component: "Textbox",
-    required: false,
-    label: "Detail",
-  },
-};
-
-/** Fields with deprecated dropdown options */
-export const deprecatedDropdownConfigs: Dictionary<IFieldConfig> = {
-  category: {
-    component: "Dropdown",
-    required: true,
-    label: "Category",
-    dropdownOptions: [
-      { key: "A", text: "A" },
-      { key: "B", text: "B" },
-    ],
-    deprecatedDropdownOptions: [
-      { oldVal: "C", newVal: "A" },
     ],
   },
-};
-
-/** Fields for DynamicFragment (hidden by default) */
-export const fragmentConfigs: Dictionary<IFieldConfig> = {
-  fragment: {
-    component: "DynamicFragment",
-    label: "Fragment",
-  },
-  name: {
-    component: "Textbox",
-    required: true,
-    label: "Name",
-  },
+  detail: { type: "Textbox", required: false, label: "Detail" },
 };
 
 /** Circular dependency configs (for cycle detection tests) */
-export const circularDependencyConfigs: Dictionary<IFieldConfig> = {
+export const circularDependencyConfigs: Record<string, IFieldConfig> = {
   fieldA: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: false,
     label: "Field A",
-    dropdownOptions: [
-      { key: "x", text: "X" },
-    ],
-    dependencies: {
-      x: {
-        fieldB: { required: true },
+    options: [{ value: "x", label: "X" }],
+    rules: [
+      {
+        when: { field: "fieldA", operator: "equals", value: "x" },
+        then: { fields: { fieldB: { required: true } } },
       },
-    },
+    ],
   },
   fieldB: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: false,
     label: "Field B",
-    dropdownOptions: [
-      { key: "y", text: "Y" },
-    ],
-    dependencies: {
-      y: {
-        fieldA: { required: true },
+    options: [{ value: "y", label: "Y" }],
+    rules: [
+      {
+        when: { field: "fieldB", operator: "equals", value: "y" },
+        then: { fields: { fieldA: { required: true } } },
       },
-    },
+    ],
   },
 };
 
 /** All fields readonly scenario */
-export const allReadonlyConfigs: Dictionary<IFieldConfig> = {
-  name: {
-    component: "Textbox",
-    required: true,
-    label: "Name",
-  },
+export const allReadonlyConfigs: Record<string, IFieldConfig> = {
+  name: { type: "Textbox", required: true, label: "Name" },
   status: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: false,
     label: "Status",
-    dropdownOptions: [
-      { key: "Open", text: "Open" },
-      { key: "Closed", text: "Closed" },
+    options: [
+      { value: "Open", label: "Open" },
+      { value: "Closed", label: "Closed" },
     ],
   },
 };
 
-/** Fields with nested order dependencies (recursive) */
-export const nestedOrderDependencyConfigs: Dictionary<IFieldConfig> = {
-  category: {
-    component: "Dropdown",
-    required: true,
-    label: "Category",
-    dropdownOptions: [
-      { key: "A", text: "A" },
-      { key: "B", text: "B" },
-    ],
-    orderDependencies: {
-      A: {
-        subcategory: {
-          A1: ["category", "subcategory", "name"],
-          A2: ["category", "subcategory", "description"],
-        },
-      },
-      B: ["category", "name", "description"],
-    },
-  },
-  subcategory: {
-    component: "Dropdown",
-    required: false,
-    label: "Subcategory",
-    dropdownOptions: [
-      { key: "A1", text: "A1" },
-      { key: "A2", text: "A2" },
-    ],
-  },
-  name: {
-    component: "Textbox",
-    required: true,
-    label: "Name",
-  },
-  description: {
-    component: "Textbox",
-    required: false,
-    label: "Description",
-  },
+/** DynamicFragment configs */
+export const fragmentConfigs: Record<string, IFieldConfig> = {
+  fragment: { type: "DynamicFragment", label: "Fragment" },
+  name: { type: "Textbox", required: true, label: "Name" },
 };
 
-/** multiselect fields with dropdown deps */
-export const multiselectConfigs: Dictionary<IFieldConfig> = {
+/** Multiselect configs */
+export const multiselectConfigs: Record<string, IFieldConfig> = {
   tags: {
-    component: "Multiselect",
+    type: "Multiselect",
     required: false,
     label: "Tags",
-    dropdownOptions: [
-      { key: "frontend", text: "Frontend" },
-      { key: "backend", text: "Backend" },
-      { key: "design", text: "Design" },
+    options: [
+      { value: "frontend", label: "Frontend" },
+      { value: "backend", label: "Backend" },
+      { value: "design", label: "Design" },
     ],
   },
 };
 
 /** Default value configs */
-export const defaultValueConfigs: Dictionary<IFieldConfig> = {
+export const defaultValueConfigs: Record<string, IFieldConfig> = {
   status: {
-    component: "Dropdown",
+    type: "Dropdown",
     required: true,
     label: "Status",
     defaultValue: "Open",
-    dropdownOptions: [
-      { key: "Open", text: "Open" },
-      { key: "Closed", text: "Closed" },
+    options: [
+      { value: "Open", label: "Open" },
+      { value: "Closed", label: "Closed" },
     ],
   },
-  name: {
-    component: "Textbox",
-    required: true,
-    label: "Name",
+  name: { type: "Textbox", required: true, label: "Name" },
+};
+
+/** Full IFormConfig v2 example */
+export const sampleFormConfig: IFormConfig = {
+  version: 2,
+  fields: singleDependencyConfigs,
+  fieldOrder: ["status", "priority"],
+  settings: {
+    manualSave: false,
+    expandCutoffCount: 12,
+  },
+};
+
+/** IFormConfig with wizard */
+export const wizardFormConfig: IFormConfig = {
+  version: 2,
+  fields: {
+    name: { type: "Textbox", required: true, label: "Name" },
+    email: { type: "Textbox", required: true, label: "Email", validate: [{ name: "email" }] },
+    role: {
+      type: "Dropdown",
+      required: true,
+      label: "Role",
+      options: [
+        { value: "admin", label: "Admin" },
+        { value: "user", label: "User" },
+      ],
+    },
+    permissions: {
+      type: "Multiselect",
+      required: false,
+      label: "Permissions",
+      options: [
+        { value: "read", label: "Read" },
+        { value: "write", label: "Write" },
+        { value: "admin", label: "Admin" },
+      ],
+    },
+  },
+  fieldOrder: ["name", "email", "role", "permissions"],
+  wizard: {
+    steps: [
+      { id: "basics", title: "Basic Info", fields: ["name", "email"] },
+      { id: "access", title: "Access", fields: ["role", "permissions"] },
+    ],
+    linearNavigation: true,
+    validateOnStepChange: true,
   },
 };

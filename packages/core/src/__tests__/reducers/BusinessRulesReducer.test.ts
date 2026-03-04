@@ -1,39 +1,35 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import businessRulesReducer from "../../reducers/BusinessRulesReducer";
-import { ActionTypeKeys } from "../../types/IBusinessRuleActionKeys";
-import { IBusinessRulesState } from "../../types/IBusinessRulesState";
-import { IConfigBusinessRules } from "../../types/IConfigBusinessRules";
-import { defaultBusinessRulesState } from "../../providers/IBusinessRulesProvider";
-import BusinessRulesActionType from "../../types/IBusinessRuleAction";
+import { describe, it, expect } from "vitest";
+import rulesEngineReducer, { defaultRulesEngineState } from "../../reducers/BusinessRulesReducer";
+import { RulesEngineActionType, RulesEngineAction } from "../../types/IRulesEngineAction";
+import { IRulesEngineState, IRuntimeFormState } from "../../types/IRuntimeFieldState";
 
-describe("BusinessRulesReducer", () => {
-  const makeConfigRules = (overrides?: Partial<IConfigBusinessRules>): IConfigBusinessRules => ({
-    order: ["field1", "field2"],
-    fieldRules: {
-      field1: { component: "Textbox", required: true },
-      field2: { component: "Dropdown", required: false, hidden: false },
+describe("BusinessRulesReducer (v2 — RulesEngineReducer)", () => {
+  const makeFormState = (overrides?: Partial<IRuntimeFormState>): IRuntimeFormState => ({
+    fieldOrder: ["field1", "field2"],
+    fieldStates: {
+      field1: { type: "Textbox", required: true },
+      field2: { type: "Dropdown", required: false, hidden: false },
     },
     ...overrides,
   });
 
   describe("default/unknown action", () => {
     it("returns the same state for an unknown action type", () => {
-      const state: IBusinessRulesState = {
-        configRules: {
-          existingConfig: makeConfigRules(),
+      const state: IRulesEngineState = {
+        configs: {
+          existingConfig: makeFormState(),
         },
       };
 
-      // Use "as any" to simulate an unknown action type
       const unknownAction = {
         type: "UNKNOWN_ACTION",
         payload: {
           configName: "test",
-          configBusinessRules: makeConfigRules(),
+          formState: makeFormState(),
         },
-      } as unknown as BusinessRulesActionType;
+      } as unknown as RulesEngineAction;
 
-      const result = businessRulesReducer(state, unknownAction);
+      const result = rulesEngineReducer(state, unknownAction);
       expect(result).toBe(state);
     });
 
@@ -42,265 +38,322 @@ describe("BusinessRulesReducer", () => {
         type: "UNKNOWN_ACTION",
         payload: {
           configName: "test",
-          configBusinessRules: makeConfigRules(),
+          formState: makeFormState(),
         },
-      } as unknown as BusinessRulesActionType;
+      } as unknown as RulesEngineAction;
 
-      const result = businessRulesReducer(undefined, unknownAction);
-      expect(result).toEqual(defaultBusinessRulesState);
+      const result = rulesEngineReducer(undefined, unknownAction);
+      expect(result).toEqual(defaultRulesEngineState);
     });
   });
 
-  describe("BUSINESSRULES_SET action", () => {
-    it("sets config rules for a config name on empty state", () => {
-      const configRules = makeConfigRules();
+  describe("RULES_ENGINE_SET action", () => {
+    it("sets form state for a config name on empty state", () => {
+      const formState = makeFormState();
 
-      const action: BusinessRulesActionType = {
-        type: ActionTypeKeys.BUSINESSRULES_SET,
+      const action: RulesEngineAction = {
+        type: RulesEngineActionType.SET,
         payload: {
           configName: "myForm",
-          configBusinessRules: configRules,
+          formState,
         },
       };
 
-      const result = businessRulesReducer(defaultBusinessRulesState, action);
+      const result = rulesEngineReducer(defaultRulesEngineState, action);
 
-      expect(result.configRules).toHaveProperty("myForm");
-      expect(result.configRules.myForm.order).toEqual(["field1", "field2"]);
-      expect(result.configRules.myForm.fieldRules.field1).toEqual({
-        component: "Textbox",
+      expect(result.configs).toHaveProperty("myForm");
+      expect(result.configs.myForm.fieldOrder).toEqual(["field1", "field2"]);
+      expect(result.configs.myForm.fieldStates.field1).toEqual({
+        type: "Textbox",
         required: true,
       });
-      expect(result.configRules.myForm.fieldRules.field2).toEqual({
-        component: "Dropdown",
+      expect(result.configs.myForm.fieldStates.field2).toEqual({
+        type: "Dropdown",
         required: false,
         hidden: false,
       });
     });
 
     it("does not mutate the original state", () => {
-      const state: IBusinessRulesState = {
-        configRules: {},
+      const state: IRulesEngineState = {
+        configs: {},
       };
 
-      const action: BusinessRulesActionType = {
-        type: ActionTypeKeys.BUSINESSRULES_SET,
+      const action: RulesEngineAction = {
+        type: RulesEngineActionType.SET,
         payload: {
           configName: "myForm",
-          configBusinessRules: makeConfigRules(),
+          formState: makeFormState(),
         },
       };
 
-      const result = businessRulesReducer(state, action);
+      const result = rulesEngineReducer(state, action);
 
       expect(result).not.toBe(state);
-      expect(state.configRules).not.toHaveProperty("myForm");
+      expect(state.configs).not.toHaveProperty("myForm");
     });
 
     it("overwrites an existing config when SET is dispatched again", () => {
-      const initialConfig = makeConfigRules({
-        order: ["old1", "old2"],
-        fieldRules: {
-          old1: { component: "Textbox" },
-          old2: { component: "Textbox" },
+      const initialFormState = makeFormState({
+        fieldOrder: ["old1", "old2"],
+        fieldStates: {
+          old1: { type: "Textbox" },
+          old2: { type: "Textbox" },
         },
       });
 
-      const state: IBusinessRulesState = {
-        configRules: {
-          myForm: initialConfig,
+      const state: IRulesEngineState = {
+        configs: {
+          myForm: initialFormState,
         },
       };
 
-      const newConfig = makeConfigRules({
-        order: ["new1"],
-        fieldRules: {
-          new1: { component: "Dropdown", required: true },
+      const newFormState = makeFormState({
+        fieldOrder: ["new1"],
+        fieldStates: {
+          new1: { type: "Dropdown", required: true },
         },
       });
 
-      const action: BusinessRulesActionType = {
-        type: ActionTypeKeys.BUSINESSRULES_SET,
+      const action: RulesEngineAction = {
+        type: RulesEngineActionType.SET,
         payload: {
           configName: "myForm",
-          configBusinessRules: newConfig,
+          formState: newFormState,
         },
       };
 
-      const result = businessRulesReducer(state, action);
+      const result = rulesEngineReducer(state, action);
 
-      expect(result.configRules.myForm.order).toEqual(["new1"]);
-      expect(result.configRules.myForm.fieldRules).toEqual({
-        new1: { component: "Dropdown", required: true },
+      expect(result.configs.myForm.fieldOrder).toEqual(["new1"]);
+      expect(result.configs.myForm.fieldStates).toEqual({
+        new1: { type: "Dropdown", required: true },
       });
-      // old fields should be gone
-      expect(result.configRules.myForm.fieldRules).not.toHaveProperty("old1");
+      expect(result.configs.myForm.fieldStates).not.toHaveProperty("old1");
     });
   });
 
-  describe("BUSINESSRULES_UPDATE action", () => {
-    it("merges field rules and updates order", () => {
-      const state: IBusinessRulesState = {
-        configRules: {
-          myForm: makeConfigRules(),
+  describe("RULES_ENGINE_UPDATE action", () => {
+    it("merges field states and updates order", () => {
+      const state: IRulesEngineState = {
+        configs: {
+          myForm: makeFormState(),
         },
       };
 
-      const updatePayload: IConfigBusinessRules = {
-        order: ["field2", "field1"],
-        fieldRules: {
+      const updatePayload: IRuntimeFormState = {
+        fieldOrder: ["field2", "field1"],
+        fieldStates: {
           field1: { required: false, hidden: true },
         },
       };
 
-      const action: BusinessRulesActionType = {
-        type: ActionTypeKeys.BUSINESSRULES_UPDATE,
+      const action: RulesEngineAction = {
+        type: RulesEngineActionType.UPDATE,
         payload: {
           configName: "myForm",
-          configBusinessRules: updatePayload,
+          formState: updatePayload,
         },
       };
 
-      const result = businessRulesReducer(state, action);
+      const result = rulesEngineReducer(state, action);
 
       // Order should be replaced
-      expect(result.configRules.myForm.order).toEqual(["field2", "field1"]);
+      expect(result.configs.myForm.fieldOrder).toEqual(["field2", "field1"]);
 
-      // field1 should be merged: component from original, required/hidden from update
-      expect(result.configRules.myForm.fieldRules.field1).toEqual({
-        component: "Textbox",
+      // field1 should be merged: type from original, required/hidden from update
+      expect(result.configs.myForm.fieldStates.field1).toEqual({
+        type: "Textbox",
         required: false,
         hidden: true,
       });
     });
 
     it("preserves existing fields not in the update payload", () => {
-      const state: IBusinessRulesState = {
-        configRules: {
-          myForm: makeConfigRules(),
+      const state: IRulesEngineState = {
+        configs: {
+          myForm: makeFormState(),
         },
       };
 
-      const updatePayload: IConfigBusinessRules = {
-        order: ["field1", "field2"],
-        fieldRules: {
+      const updatePayload: IRuntimeFormState = {
+        fieldOrder: ["field1", "field2"],
+        fieldStates: {
           field1: { required: false },
         },
       };
 
-      const action: BusinessRulesActionType = {
-        type: ActionTypeKeys.BUSINESSRULES_UPDATE,
+      const action: RulesEngineAction = {
+        type: RulesEngineActionType.UPDATE,
         payload: {
           configName: "myForm",
-          configBusinessRules: updatePayload,
+          formState: updatePayload,
         },
       };
 
-      const result = businessRulesReducer(state, action);
+      const result = rulesEngineReducer(state, action);
 
       // field2 should be unchanged
-      expect(result.configRules.myForm.fieldRules.field2).toEqual({
-        component: "Dropdown",
+      expect(result.configs.myForm.fieldStates.field2).toEqual({
+        type: "Dropdown",
         required: false,
         hidden: false,
       });
     });
 
     it("does not mutate the original state", () => {
-      const state: IBusinessRulesState = {
-        configRules: {
-          myForm: makeConfigRules(),
+      const state: IRulesEngineState = {
+        configs: {
+          myForm: makeFormState(),
         },
       };
 
-      const action: BusinessRulesActionType = {
-        type: ActionTypeKeys.BUSINESSRULES_UPDATE,
+      const action: RulesEngineAction = {
+        type: RulesEngineActionType.UPDATE,
         payload: {
           configName: "myForm",
-          configBusinessRules: {
-            order: ["field2", "field1"],
-            fieldRules: {
+          formState: {
+            fieldOrder: ["field2", "field1"],
+            fieldStates: {
               field1: { hidden: true },
             },
           },
         },
       };
 
-      const result = businessRulesReducer(state, action);
+      const result = rulesEngineReducer(state, action);
 
       expect(result).not.toBe(state);
       // Original field1 should not have hidden
-      expect(state.configRules.myForm.fieldRules.field1).toEqual({
-        component: "Textbox",
+      expect(state.configs.myForm.fieldStates.field1).toEqual({
+        type: "Textbox",
         required: true,
       });
+    });
+
+    it("returns same state when config does not exist", () => {
+      const state: IRulesEngineState = {
+        configs: {},
+      };
+
+      const action: RulesEngineAction = {
+        type: RulesEngineActionType.UPDATE,
+        payload: {
+          configName: "nonExistent",
+          formState: {
+            fieldOrder: ["a"],
+            fieldStates: { a: { required: true } },
+          },
+        },
+      };
+
+      const result = rulesEngineReducer(state, action);
+      expect(result).toBe(state);
+    });
+  });
+
+  describe("RULES_ENGINE_CLEAR action", () => {
+    it("clears a specific config when configName is provided", () => {
+      const state: IRulesEngineState = {
+        configs: {
+          formA: makeFormState(),
+          formB: makeFormState(),
+        },
+      };
+
+      const action: RulesEngineAction = {
+        type: RulesEngineActionType.CLEAR,
+        payload: { configName: "formA" },
+      };
+
+      const result = rulesEngineReducer(state, action);
+      expect(result.configs).not.toHaveProperty("formA");
+      expect(result.configs).toHaveProperty("formB");
+    });
+
+    it("clears all configs when no configName is provided", () => {
+      const state: IRulesEngineState = {
+        configs: {
+          formA: makeFormState(),
+          formB: makeFormState(),
+        },
+      };
+
+      const action: RulesEngineAction = {
+        type: RulesEngineActionType.CLEAR,
+        payload: {},
+      };
+
+      const result = rulesEngineReducer(state, action);
+      expect(result).toEqual(defaultRulesEngineState);
+      expect(Object.keys(result.configs)).toHaveLength(0);
     });
   });
 
   describe("multiple configs coexisting", () => {
     it("SET for different config names results in both being present", () => {
-      let state: IBusinessRulesState = { configRules: {} };
+      let state: IRulesEngineState = { configs: {} };
 
-      const configA = makeConfigRules({
-        order: ["a1"],
-        fieldRules: { a1: { component: "Textbox" } },
+      const formStateA = makeFormState({
+        fieldOrder: ["a1"],
+        fieldStates: { a1: { type: "Textbox" } },
       });
 
-      const configB = makeConfigRules({
-        order: ["b1", "b2"],
-        fieldRules: {
-          b1: { component: "Dropdown" },
-          b2: { component: "Toggle" },
+      const formStateB = makeFormState({
+        fieldOrder: ["b1", "b2"],
+        fieldStates: {
+          b1: { type: "Dropdown" },
+          b2: { type: "Toggle" },
         },
       });
 
-      state = businessRulesReducer(state, {
-        type: ActionTypeKeys.BUSINESSRULES_SET,
-        payload: { configName: "formA", configBusinessRules: configA },
+      state = rulesEngineReducer(state, {
+        type: RulesEngineActionType.SET,
+        payload: { configName: "formA", formState: formStateA },
       });
 
-      state = businessRulesReducer(state, {
-        type: ActionTypeKeys.BUSINESSRULES_SET,
-        payload: { configName: "formB", configBusinessRules: configB },
+      state = rulesEngineReducer(state, {
+        type: RulesEngineActionType.SET,
+        payload: { configName: "formB", formState: formStateB },
       });
 
-      expect(state.configRules).toHaveProperty("formA");
-      expect(state.configRules).toHaveProperty("formB");
-      expect(state.configRules.formA.order).toEqual(["a1"]);
-      expect(state.configRules.formB.order).toEqual(["b1", "b2"]);
+      expect(state.configs).toHaveProperty("formA");
+      expect(state.configs).toHaveProperty("formB");
+      expect(state.configs.formA.fieldOrder).toEqual(["a1"]);
+      expect(state.configs.formB.fieldOrder).toEqual(["b1", "b2"]);
     });
 
     it("UPDATE on one config does not affect another", () => {
-      const state: IBusinessRulesState = {
-        configRules: {
-          formA: makeConfigRules({
-            order: ["a1"],
-            fieldRules: { a1: { component: "Textbox", required: true } },
+      const state: IRulesEngineState = {
+        configs: {
+          formA: makeFormState({
+            fieldOrder: ["a1"],
+            fieldStates: { a1: { type: "Textbox", required: true } },
           }),
-          formB: makeConfigRules({
-            order: ["b1"],
-            fieldRules: { b1: { component: "Dropdown", required: false } },
+          formB: makeFormState({
+            fieldOrder: ["b1"],
+            fieldStates: { b1: { type: "Dropdown", required: false } },
           }),
         },
       };
 
-      const result = businessRulesReducer(state, {
-        type: ActionTypeKeys.BUSINESSRULES_UPDATE,
+      const result = rulesEngineReducer(state, {
+        type: RulesEngineActionType.UPDATE,
         payload: {
           configName: "formA",
-          configBusinessRules: {
-            order: ["a1"],
-            fieldRules: { a1: { required: false } },
+          formState: {
+            fieldOrder: ["a1"],
+            fieldStates: { a1: { required: false } },
           },
         },
       });
 
       // formA updated
-      expect(result.configRules.formA.fieldRules.a1.required).toBe(false);
+      expect(result.configs.formA.fieldStates.a1.required).toBe(false);
 
       // formB unchanged
-      expect(result.configRules.formB.fieldRules.b1).toEqual({
-        component: "Dropdown",
+      expect(result.configs.formB.fieldStates.b1).toEqual({
+        type: "Dropdown",
         required: false,
       });
     });

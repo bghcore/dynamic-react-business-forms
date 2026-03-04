@@ -12,7 +12,7 @@ describe("jsonSchemaToFieldConfig", () => {
     const result = jsonSchemaToFieldConfig(schema);
 
     expect(result.name).toBeDefined();
-    expect(result.name.component).toBe("Textbox");
+    expect(result.name.type).toBe("Textbox");
   });
 
   it("maps number type to Number", () => {
@@ -25,7 +25,7 @@ describe("jsonSchemaToFieldConfig", () => {
     const result = jsonSchemaToFieldConfig(schema);
 
     expect(result.age).toBeDefined();
-    expect(result.age.component).toBe("Number");
+    expect(result.age.type).toBe("Number");
   });
 
   it("maps boolean type to Toggle", () => {
@@ -38,7 +38,7 @@ describe("jsonSchemaToFieldConfig", () => {
     const result = jsonSchemaToFieldConfig(schema);
 
     expect(result.active).toBeDefined();
-    expect(result.active.component).toBe("Toggle");
+    expect(result.active.type).toBe("Toggle");
   });
 
   it("maps enum to Dropdown with options", () => {
@@ -54,15 +54,15 @@ describe("jsonSchemaToFieldConfig", () => {
     const result = jsonSchemaToFieldConfig(schema);
 
     expect(result.status).toBeDefined();
-    expect(result.status.component).toBe("Dropdown");
-    expect(result.status.dropdownOptions).toEqual([
-      { key: "Active", text: "Active" },
-      { key: "Inactive", text: "Inactive" },
-      { key: "Pending", text: "Pending" },
+    expect(result.status.type).toBe("Dropdown");
+    expect(result.status.options).toEqual([
+      { value: "Active", label: "Active" },
+      { value: "Inactive", label: "Inactive" },
+      { value: "Pending", label: "Pending" },
     ]);
   });
 
-  it("maps format=email to EmailValidation", () => {
+  it("maps format=email to email validation rule", () => {
     const schema: IJsonSchema = {
       properties: {
         email: { type: "string", format: "email" },
@@ -72,7 +72,8 @@ describe("jsonSchemaToFieldConfig", () => {
     const result = jsonSchemaToFieldConfig(schema);
 
     expect(result.email).toBeDefined();
-    expect(result.email.validations).toContain("EmailValidation");
+    expect(result.email.validate).toBeDefined();
+    expect(result.email.validate!.some(v => v.name === "email")).toBe(true);
   });
 
   it("maps format=date to DateControl", () => {
@@ -85,7 +86,7 @@ describe("jsonSchemaToFieldConfig", () => {
     const result = jsonSchemaToFieldConfig(schema);
 
     expect(result.startDate).toBeDefined();
-    expect(result.startDate.component).toBe("DateControl");
+    expect(result.startDate.type).toBe("DateControl");
   });
 
   it("maps required array to required: true", () => {
@@ -136,7 +137,7 @@ describe("jsonSchemaToFieldConfig", () => {
 
     const result = jsonSchemaToFieldConfig(schema);
 
-    expect(result.count.component).toBe("Number");
+    expect(result.count.type).toBe("Number");
   });
 
   it("maps number with minimum and maximum to Slider", () => {
@@ -148,7 +149,7 @@ describe("jsonSchemaToFieldConfig", () => {
 
     const result = jsonSchemaToFieldConfig(schema);
 
-    expect(result.rating.component).toBe("Slider");
+    expect(result.rating.type).toBe("Slider");
   });
 
   it("maps array type to Multiselect", () => {
@@ -160,10 +161,10 @@ describe("jsonSchemaToFieldConfig", () => {
 
     const result = jsonSchemaToFieldConfig(schema);
 
-    expect(result.tags.component).toBe("Multiselect");
+    expect(result.tags.type).toBe("Multiselect");
   });
 
-  it("maps format=uri to Textbox with isValidUrl validation", () => {
+  it("maps format=uri to Textbox with url validation", () => {
     const schema: IJsonSchema = {
       properties: {
         website: { type: "string", format: "uri" },
@@ -172,8 +173,8 @@ describe("jsonSchemaToFieldConfig", () => {
 
     const result = jsonSchemaToFieldConfig(schema);
 
-    expect(result.website.component).toBe("Textbox");
-    expect(result.website.validations).toContain("isValidUrl");
+    expect(result.website.type).toBe("Textbox");
+    expect(result.website.validate!.some(v => v.name === "url")).toBe(true);
   });
 
   it("maps string with maxLength > 200 to Textarea", () => {
@@ -185,7 +186,7 @@ describe("jsonSchemaToFieldConfig", () => {
 
     const result = jsonSchemaToFieldConfig(schema);
 
-    expect(result.description.component).toBe("Textarea");
+    expect(result.description.type).toBe("Textarea");
   });
 
   it("maps format=date-time to DateControl", () => {
@@ -197,7 +198,7 @@ describe("jsonSchemaToFieldConfig", () => {
 
     const result = jsonSchemaToFieldConfig(schema);
 
-    expect(result.createdAt.component).toBe("DateControl");
+    expect(result.createdAt.type).toBe("DateControl");
   });
 
   it("preserves default value", () => {
@@ -221,7 +222,7 @@ describe("jsonSchemaToFieldConfig", () => {
 
     const result = jsonSchemaToFieldConfig(schema);
 
-    expect(result.custom.component).toBe("Textbox");
+    expect(result.custom.type).toBe("Textbox");
   });
 
   it("handles type as array, using first element", () => {
@@ -233,6 +234,6 @@ describe("jsonSchemaToFieldConfig", () => {
 
     const result = jsonSchemaToFieldConfig(schema);
 
-    expect(result.nullable.component).toBe("Textbox");
+    expect(result.nullable.type).toBe("Textbox");
   });
 });

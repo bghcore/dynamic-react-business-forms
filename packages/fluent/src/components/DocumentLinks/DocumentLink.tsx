@@ -1,4 +1,4 @@
-import { HookInlineFormStrings, HookInlineFormConstants } from "@bghcore/dynamic-forms-core";
+import { FormStrings, FormConstants } from "@bghcore/dynamic-forms-core";
 import { Input, Button, Tooltip } from "@fluentui/react-components";
 import { CheckmarkRegular, DismissRegular, EditRegular, DeleteRegular } from "@fluentui/react-icons";
 import React from "react";
@@ -31,7 +31,7 @@ const DocumentLink = (props: IDocumentLinkProps) => {
     fieldName, programName, entityType, entityId, readOnly, index, title, url, addNewLink,
     saveLinks, onCancelAddLink, onConfirmDeleteLink
   } = props;
-  const { confirm, cancel, linkTitleLabel, linkUrlLabel, add, edit, deleteLabel } = HookInlineFormStrings;
+  const { confirm, cancel, linkTitleLabel, linkUrlLabel, add, edit, deleteLabel } = FormStrings;
 
   const [editingLink, setEditingLink] = React.useState<boolean>(false);
 
@@ -67,7 +67,7 @@ const DocumentLink = (props: IDocumentLinkProps) => {
             <Button appearance="subtle" icon={<DismissRegular />} aria-label={cancel} onClick={onCancelFormChanges} />
           </div>
         </div>
-        <Controller name="title" control={control} rules={{ required: { value: true, message: HookInlineFormStrings.required } }}
+        <Controller name="title" control={control} rules={{ required: { value: true, message: FormStrings.required } }}
           render={({ field, fieldState: { error } }) => (
             <div>
               <label>{linkTitleLabel}</label>
@@ -78,8 +78,8 @@ const DocumentLink = (props: IDocumentLinkProps) => {
           )} />
         <Controller name="url" control={control}
           rules={{
-            required: { value: true, message: HookInlineFormStrings.required },
-            pattern: { value: HookInlineFormConstants.urlRegex, message: HookInlineFormStrings.urlRequired }
+            required: { value: true, message: FormStrings.required },
+            pattern: { value: FormConstants.urlRegex, message: FormStrings.urlRequired }
           }}
           render={({ field, fieldState: { error } }) => (
             <div>

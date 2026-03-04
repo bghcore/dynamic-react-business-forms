@@ -1,4 +1,4 @@
-import { IHookFieldSharedProps } from "@bghcore/dynamic-forms-core";
+import { IFieldProps } from "@bghcore/dynamic-forms-core";
 import { FormControl, Select, MenuItem } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material";
 import React from "react";
@@ -10,18 +10,18 @@ interface IHookDropdownProps {
   setDefaultKeyIfOnlyOneOption?: boolean;
 }
 
-const HookDropdown = (props: IHookFieldSharedProps<IHookDropdownProps>) => {
-  const { fieldName, programName, entityType, entityId, value, readOnly, meta, error, dropdownOptions, setFieldValue } = props;
+const HookDropdown = (props: IFieldProps<IHookDropdownProps>) => {
+  const { fieldName, programName, entityType, entityId, value, readOnly, config, error, options, setFieldValue } = props;
 
   const onChange = (event: SelectChangeEvent<string>) => {
     setFieldValue(fieldName, event.target.value);
   };
 
   React.useEffect(() => {
-    if (!value && !readOnly && meta?.setDefaultKeyIfOnlyOneOption && dropdownOptions?.length === 1) {
-      setFieldValue(fieldName, String(dropdownOptions[0].key));
+    if (!value && !readOnly && config?.setDefaultKeyIfOnlyOneOption && options?.length === 1) {
+      setFieldValue(fieldName, String(options[0].value));
     }
-  }, [dropdownOptions]);
+  }, [options]);
 
   return readOnly ? (
     <ReadOnlyText fieldName={fieldName} value={value as string} />
@@ -34,9 +34,9 @@ const HookDropdown = (props: IHookFieldSharedProps<IHookDropdownProps>) => {
         displayEmpty
         data-testid={GetFieldDataTestId(fieldName, programName, entityType, entityId)}
       >
-        {dropdownOptions?.map(option => (
-          <MenuItem key={String(option.key)} value={String(option.key)} disabled={option.disabled}>
-            {option.text}
+        {options?.map(option => (
+          <MenuItem key={String(option.value)} value={String(option.value)} disabled={option.disabled}>
+            {option.label}
           </MenuItem>
         ))}
       </Select>

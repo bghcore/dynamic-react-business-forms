@@ -1,10 +1,10 @@
-import { IHookFieldSharedProps } from "@bghcore/dynamic-forms-core";
+import { IFieldProps } from "@bghcore/dynamic-forms-core";
 import React from "react";
 import { useFormContext } from "react-hook-form";
 import DocumentLinks, { IDocumentLink } from "../components/DocumentLinks/DocumentLinks";
 import { FieldClassName } from "../helpers";
 
-const HookDocumentLinks = (props: IHookFieldSharedProps<{}>) => {
+const HookDocumentLinks = (props: IFieldProps<{}>) => {
   const { fieldName, programName, entityType, entityId, value, readOnly, error, setFieldValue } = props;
 
   const { watch } = useFormContext();

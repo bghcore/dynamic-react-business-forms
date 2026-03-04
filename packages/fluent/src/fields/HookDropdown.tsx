@@ -1,4 +1,4 @@
-import { IHookFieldSharedProps } from "@bghcore/dynamic-forms-core";
+import { IFieldProps } from "@bghcore/dynamic-forms-core";
 import { Dropdown, Option } from "@fluentui/react-components";
 import type { OptionOnSelectData } from "@fluentui/react-components";
 import React from "react";
@@ -10,20 +10,20 @@ interface IHookDropdownProps {
   setDefaultKeyIfOnlyOneOption?: boolean;
 }
 
-const HookDropdown = (props: IHookFieldSharedProps<IHookDropdownProps>) => {
-  const { fieldName, programName, entityType, entityId, value, readOnly, meta, error, dropdownOptions, setFieldValue } = props;
+const HookDropdown = (props: IFieldProps<IHookDropdownProps>) => {
+  const { fieldName, programName, entityType, entityId, value, readOnly, config, error, options, setFieldValue } = props;
 
   const onOptionSelect = (_: unknown, data: OptionOnSelectData) => {
     setFieldValue(fieldName, data.optionValue);
   };
 
   React.useEffect(() => {
-    if (!value && !readOnly && meta?.setDefaultKeyIfOnlyOneOption && dropdownOptions?.length === 1) {
-      setFieldValue(fieldName, String(dropdownOptions[0].key));
+    if (!value && !readOnly && config?.setDefaultKeyIfOnlyOneOption && options?.length === 1) {
+      setFieldValue(fieldName, String(options[0].value));
     }
-  }, [dropdownOptions]);
+  }, [options]);
 
-  const selectedText = dropdownOptions?.find(o => String(o.key) === String(value))?.text;
+  const selectedText = options?.find(o => String(o.value) === String(value))?.label;
 
   return readOnly ? (
     <ReadOnlyText fieldName={fieldName} value={value as string} />
@@ -35,9 +35,9 @@ const HookDropdown = (props: IHookFieldSharedProps<IHookDropdownProps>) => {
       onOptionSelect={onOptionSelect}
       data-testid={GetFieldDataTestId(fieldName, programName, entityType, entityId)}
     >
-      {dropdownOptions?.map(option => (
-        <Option key={String(option.key)} value={String(option.key)} disabled={option.disabled}>
-          {option.text}
+      {options?.map(option => (
+        <Option key={String(option.value)} value={String(option.value)} disabled={option.disabled}>
+          {option.label}
         </Option>
       ))}
     </Dropdown>

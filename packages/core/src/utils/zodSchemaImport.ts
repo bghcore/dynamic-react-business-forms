@@ -1,27 +1,12 @@
-import { Dictionary } from "../utils";
 import { IFieldConfig } from "../types/IFieldConfig";
+import { IOption } from "../types/IOption";
 
 /**
- * Converts a Zod object schema to Dictionary<IFieldConfig>.
+ * Converts a Zod object schema to Record<string, IFieldConfig>.
  * Does NOT require zod as a dependency — inspects the schema shape at runtime.
- *
- * Supports: z.string(), z.number(), z.boolean(), z.enum(), z.date(),
- * z.array(), z.optional(), z.nullable()
- *
- * @example
- * const schema = z.object({
- *   name: z.string().min(1),
- *   email: z.string().email(),
- *   age: z.number().min(0).max(120),
- *   role: z.enum(["admin", "user", "guest"]),
- *   active: z.boolean(),
- * });
- * const fieldConfigs = zodSchemaToFieldConfig(schema);
  */
-export function zodSchemaToFieldConfig(zodSchema: unknown): Dictionary<IFieldConfig> {
-  const configs: Dictionary<IFieldConfig> = {};
-
-  // Get the shape from a Zod object schema
+export function zodSchemaToFieldConfig(zodSchema: unknown): Record<string, IFieldConfig> {
+  const configs: Record<string, IFieldConfig> = {};
   const shape = getZodShape(zodSchema);
   if (!shape) return configs;
 
@@ -45,7 +30,6 @@ interface ZodDef {
 
 function getZodShape(schema: unknown): Record<string, unknown> | null {
   const s = schema as ZodDef;
-  // z.object() has _def.shape() or _def.shape
   if (s?._def && typeof s._def === "object") {
     const def = s._def as Record<string, unknown>;
     if (typeof def.shape === "function") return (def.shape as () => Record<string, unknown>)();
@@ -59,43 +43,44 @@ function zodFieldToConfig(fieldName: string, field: ZodDef): IFieldConfig {
   const checks = getZodChecks(field);
 
   const config: IFieldConfig = {
+    type: "Textbox",
     label: formatLabel(fieldName),
     required: !isOptional,
   };
 
-  // Map Zod type to component
   switch (typeName) {
     case "ZodString":
-      config.component = "Textbox";
+      config.type = "Textbox";
       if (checks.some(c => c.kind === "email")) {
-        config.validations = [...(config.validations ?? []), "EmailValidation"];
+        config.validate = [...(config.validate ?? []), { name: "email" }];
       }
       if (checks.some(c => c.kind === "url")) {
-        config.validations = [...(config.validations ?? []), "isValidUrl"];
+        config.validate = [...(config.validate ?? []), { name: "url" }];
       }
       break;
     case "ZodNumber":
-      config.component = "Number";
+      config.type = "Number";
       break;
     case "ZodBoolean":
-      config.component = "Toggle";
+      config.type = "Toggle";
       break;
     case "ZodEnum":
-    case "ZodNativeEnum":
-      config.component = "Dropdown";
+    case "ZodNativeEnum": {
+      config.type = "Dropdown";
       const values = getZodEnumValues(field);
       if (values) {
-        config.dropdownOptions = values.map(v => ({ key: String(v), text: String(v) }));
+        config.options = values.map(v => ({ value: String(v), label: String(v) }));
       }
       break;
+    }
     case "ZodDate":
-      config.component = "DateControl";
+      config.type = "DateControl";
       break;
     case "ZodArray":
-      config.component = "Multiselect";
+      config.type = "Multiselect";
       break;
     default:
-      config.component = "Textbox";
+      config.type = "Textbox";
   }
 
   return config;
@@ -104,8 +89,6 @@ function zodFieldToConfig(fieldName: string, field: ZodDef): IFieldConfig {
 function unwrapZodType(field: ZodDef): { typeName: string; isOptional: boolean } {
   let current = field;
   let isOptional = false;
-
-  // Unwrap ZodOptional, ZodNullable, ZodDefault
   while (current?._def) {
     const tn = current._def.typeName;
     if (tn === "ZodOptional" || tn === "ZodNullable") {
@@ -117,7 +100,6 @@ function unwrapZodType(field: ZodDef): { typeName: string; isOptional: boolean }
       break;
     }
   }
-
   return { typeName: current?._def?.typeName ?? "ZodString", isOptional };
 }
 
@@ -125,11 +107,7 @@ function getZodChecks(field: ZodDef): Array<{ kind: string; value?: unknown }> {
   let current = field;
   while (current?._def) {
     if (current._def.checks) return current._def.checks;
-    if (current._def.innerType) {
-      current = current._def.innerType as ZodDef;
-    } else {
-      break;
-    }
+    if (current._def.innerType) { current = current._def.innerType as ZodDef; } else { break; }
   }
   return [];
 }
@@ -138,19 +116,11 @@ function getZodEnumValues(field: ZodDef): string[] | null {
   let current = field;
   while (current?._def) {
     if (current._def.values) return current._def.values;
-    if (current._def.innerType) {
-      current = current._def.innerType as ZodDef;
-    } else {
-      break;
-    }
+    if (current._def.innerType) { current = current._def.innerType as ZodDef; } else { break; }
   }
   return null;
 }
 
 function formatLabel(fieldName: string): string {
-  // Convert camelCase to Title Case
-  return fieldName
-    .replace(/([A-Z])/g, " $1")
-    .replace(/^./, s => s.toUpperCase())
-    .trim();
+  return fieldName.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()).trim();
 }

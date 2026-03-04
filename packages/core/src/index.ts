@@ -5,83 +5,88 @@ export * from "./types";
 export * from "./utils";
 
 // Constants
-export { HookInlineFormConstants, ComponentTypes, FIELD_PARENT_PREFIX } from "./constants";
+export { ComponentTypes, FormConstants, FIELD_PARENT_PREFIX } from "./constants";
 
 // Strings
-export { HookInlineFormStrings } from "./strings";
+export { FormStrings } from "./strings";
 
 // Providers
-export { BusinessRulesProvider, UseBusinessRulesContext } from "./providers/BusinessRulesProvider";
-export { InjectedHookFieldProvider, UseInjectedHookFieldContext } from "./providers/InjectedHookFieldProvider";
-export type { IBusinessRulesProvider } from "./providers/IBusinessRulesProvider";
-export type { IInjectedHookFieldProvider } from "./providers/IInjectedHookFieldProvider";
+export {
+  RulesEngineProvider,
+  UseRulesEngineContext,
+} from "./providers/BusinessRulesProvider";
+export {
+  InjectedFieldProvider,
+  UseInjectedFieldContext,
+} from "./providers/InjectedHookFieldProvider";
+export type { IRulesEngineProvider } from "./providers/IBusinessRulesProvider";
+export type { IInjectedFieldProvider } from "./providers/IInjectedHookFieldProvider";
+
+// Rule Engine
+export {
+  evaluateAllRules,
+  evaluateAffectedFields,
+  buildDependencyGraph,
+  buildDefaultFieldStates,
+  topologicalSort,
+} from "./helpers/RuleEngine";
+
+// Condition Evaluator
+export {
+  evaluateCondition,
+  extractConditionDependencies,
+} from "./helpers/ConditionEvaluator";
 
 // Helpers
-export {
-  ProcessAllBusinessRules,
-  ProcessFieldBusinessRule,
-  ProcessFieldOrderDepencendies,
-  ProcessPreviousFieldBusinessRule,
-  RevertFieldBusinessRule,
-  ProcessComboFieldBusinessRule,
-  ProcessDropdownOptions,
-  ProcessFieldDropdownValues,
-  CombineBusinessRules,
-  GetFieldValue,
-  SameFieldOrder,
-  GetDefaultBusinessRules,
-  normalizeFieldConfig,
-} from "./helpers/BusinessRulesHelper";
-
 export {
   GetChildEntity,
   IsExpandVisible,
   GetConfirmInputModalProps,
-  GetValueFunctionsOnDirtyFields,
-  GetValueFunctionsOnCreate,
-  ExecuteValueFunction,
+  GetComputedValuesOnDirtyFields,
+  GetComputedValuesOnCreate,
+  ExecuteComputedValue,
   CheckFieldValidationRules,
   CheckAsyncFieldValidationRules,
   CheckValidDropdownOptions,
-  CheckDeprecatedDropdownOptions,
   CheckDefaultValues,
-  CheckIsDeprecated,
-  InitOnCreateBusinessRules,
-  InitOnEditBusinessRules,
+  InitOnCreateFormState,
+  InitOnEditFormState,
   ShowField,
-  CombineSchemaConfig,
   GetFieldsToRender,
-  CheckCrossFieldValidationRules,
+  SortOptions,
 } from "./helpers/HookInlineFormHelper";
 
-export { SortDropdownOptions } from "./helpers/FieldHelper";
+export { SortOptions as SortDropdownOptions } from "./helpers/FieldHelper";
 
 export {
   detectDependencyCycles,
-  detectOrderDependencyCycles,
+  detectSelfDependencies,
   validateDependencyGraph,
 } from "./helpers/DependencyGraphValidator";
 export type { ICycleError } from "./helpers/DependencyGraphValidator";
 
 export {
-  registerValidations,
-  getValidation,
-  getValidationRegistry,
-  registerAsyncValidations,
-  getAsyncValidation,
-  getAsyncValidationRegistry,
-  createMinLengthValidation,
-  createMaxLengthValidation,
-  createNumericRangeValidation,
-  createPatternValidation,
-  createRequiredIfValidation,
-  registerCrossFieldValidations,
-  getCrossFieldValidation,
+  registerValidators,
+  getValidator,
+  getValidatorRegistry,
+  resetValidatorRegistry,
+  runValidations,
+  runSyncValidations,
+  createMinLengthRule,
+  createMaxLengthRule,
+  createNumericRangeRule,
+  createPatternRule,
+  createRequiredIfRule,
 } from "./helpers/ValidationRegistry";
-export type { ValidationFunction, AsyncValidationFunction, CrossFieldValidationFunction } from "./helpers/ValidationRegistry";
+export type { ValidatorFn, IValidationContext } from "./helpers/ValidationRegistry";
 
-export { registerValueFunctions, getValueFunction, executeValueFunction } from "./helpers/ValueFunctionRegistry";
-export type { ValueFunction } from "./helpers/ValueFunctionRegistry";
+export {
+  registerValueFunctions,
+  getValueFunction,
+  executeValueFunction,
+  resetValueFunctionRegistry,
+} from "./helpers/ValueFunctionRegistry";
+export type { ValueFunction, IValueFunctionContext } from "./helpers/ValueFunctionRegistry";
 
 export { validateFieldConfigs } from "./helpers/ConfigValidator";
 export type { IConfigValidationError } from "./helpers/ConfigValidator";
@@ -95,25 +100,25 @@ export {
 } from "./helpers/LocaleRegistry";
 
 // Wizard
-export { HookWizardForm } from "./components/HookWizardForm";
-export type { IWizardNavigationProps, IWizardStepHeaderProps, IHookWizardFormProps } from "./components/HookWizardForm";
+export { WizardForm } from "./components/HookWizardForm";
+export type { IWizardNavigationProps, IWizardStepHeaderProps, IWizardFormProps } from "./components/HookWizardForm";
 export { getVisibleSteps, getStepFields, getStepFieldOrder, validateStepFields, isStepValid, getStepIndex } from "./helpers/WizardHelper";
 
 // Field Array
-export { HookFieldArray } from "./components/HookFieldArray";
-export type { IHookFieldArrayProps } from "./components/HookFieldArray";
+export { FieldArray } from "./components/HookFieldArray";
+export type { IFieldArrayProps } from "./components/HookFieldArray";
 
 // Components
-export { HookInlineForm } from "./components/HookInlineForm";
-export { HookInlineFormFields } from "./components/HookInlineFormFields";
-export { HookFieldWrapper } from "./components/HookFieldWrapper";
-export { default as HookRenderField } from "./components/HookRenderField";
-export { default as HookConfirmInputsModal } from "./components/HookConfirmInputsModal";
-export { HookFormErrorBoundary } from "./components/HookFormErrorBoundary";
+export { DynamicForm } from "./components/HookInlineForm";
+export { FormFields } from "./components/HookInlineFormFields";
+export { FieldWrapper } from "./components/HookFieldWrapper";
+export { default as RenderField } from "./components/HookRenderField";
+export { default as ConfirmInputsModal } from "./components/HookConfirmInputsModal";
+export { FormErrorBoundary } from "./components/HookFormErrorBoundary";
 
 // DevTools
-export { HookFormDevTools } from "./components/HookFormDevTools";
-export type { IHookFormDevToolsProps } from "./components/HookFormDevTools";
+export { FormDevTools } from "./components/HookFormDevTools";
+export type { IFormDevToolsProps } from "./components/HookFormDevTools";
 
 // Schema Import
 export { jsonSchemaToFieldConfig } from "./utils/jsonSchemaImport";
@@ -134,7 +139,7 @@ export { useBeforeUnload } from "./hooks/useBeforeUnload";
 export { serializeFormState, deserializeFormState } from "./utils/formStateSerialization";
 
 // Expression Engine
-export { evaluateExpression, extractExpressionDependencies } from "./helpers/ExpressionEngine";
+export { evaluateExpression, extractExpressionDependencies, extractFunctionDependencies } from "./helpers/ExpressionEngine";
 
 // Rule Tracing / Debugging
 export {

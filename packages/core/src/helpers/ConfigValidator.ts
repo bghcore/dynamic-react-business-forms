@@ -1,11 +1,17 @@
-import { Dictionary } from "../utils";
 import { IFieldConfig } from "../types/IFieldConfig";
-import { getValidation, getAsyncValidation } from "./ValidationRegistry";
-import { detectDependencyCycles } from "./DependencyGraphValidator";
-import { GetDefaultBusinessRules } from "./BusinessRulesHelper";
+import { getValidator } from "./ValidationRegistry";
+import { detectDependencyCycles, detectSelfDependencies } from "./DependencyGraphValidator";
+import { extractConditionDependencies } from "./ConditionEvaluator";
 
 export interface IConfigValidationError {
-  type: "missing_dependency_target" | "unregistered_component" | "unregistered_validation" | "unregistered_async_validation" | "circular_dependency" | "missing_dropdown_options" | "self_dependency";
+  type:
+    | "missing_rule_target"
+    | "unregistered_component"
+    | "unregistered_validator"
+    | "circular_dependency"
+    | "self_dependency"
+    | "missing_options"
+    | "invalid_condition";
   fieldName: string;
   message: string;
   details?: string;
@@ -14,136 +20,105 @@ export interface IConfigValidationError {
 /**
  * Validates field configs for common issues at dev time.
  *
- * Performs the following checks on every field config:
- * - **missing_dependency_target**: dependency/dropdown dependency/combo rule references a field not in the config.
- * - **self_dependency**: a field's dependency rules target itself, which causes infinite evaluation loops.
- * - **unregistered_component**: the component type is not in the provided registered components set.
- * - **unregistered_validation**: a sync validation name is not in the ValidationRegistry.
- * - **unregistered_async_validation**: an async validation name is not in the async ValidationRegistry.
- * - **missing_dropdown_options**: a Dropdown/StatusDropdown/Multiselect has no options and no dependency providing them.
- * - **circular_dependency**: the dependency graph contains cycles (detected via DependencyGraphValidator).
- *
- * @param fieldConfigs - The field configuration dictionary to validate.
- * @param registeredComponents - Optional set of registered component type names for component type checking.
- * @returns Array of validation errors (empty if config is valid).
+ * Checks:
+ * - Rule conditions reference existing fields
+ * - Cross-field effects target existing fields
+ * - Component types are registered (if registry provided)
+ * - Validators are registered
+ * - Dropdown fields have options or rules providing them
+ * - No circular/self dependencies
  */
 export function validateFieldConfigs(
-  fieldConfigs: Dictionary<IFieldConfig>,
+  fields: Record<string, IFieldConfig>,
   registeredComponents?: Set<string>
 ): IConfigValidationError[] {
   const errors: IConfigValidationError[] = [];
-  const fieldNames = new Set(Object.keys(fieldConfigs));
+  const fieldNames = new Set(Object.keys(fields));
 
-  for (const [fieldName, config] of Object.entries(fieldConfigs)) {
-    // Check dependency targets exist and check for self-dependencies
-    if (config.dependencies) {
-      for (const [value, dependentFields] of Object.entries(config.dependencies)) {
-        if (fieldName in dependentFields) {
-          errors.push({
-            type: "self_dependency",
-            fieldName,
-            message: `Field "${fieldName}" has a dependency on itself for value "${value}"`,
-          });
-        }
-        for (const targetField of Object.keys(dependentFields)) {
-          if (!fieldNames.has(targetField)) {
+  for (const [fieldName, config] of Object.entries(fields)) {
+    // Check rule condition field references
+    if (config.rules) {
+      for (const rule of config.rules) {
+        const condDeps = extractConditionDependencies(rule.when);
+        for (const dep of condDeps) {
+          if (!fieldNames.has(dep)) {
             errors.push({
-              type: "missing_dependency_target",
+              type: "missing_rule_target",
               fieldName,
-              message: `Field "${fieldName}" has dependency for value "${value}" targeting non-existent field "${targetField}"`,
-              details: targetField,
+              message: `Field "${fieldName}" has a rule condition referencing non-existent field "${dep}"`,
+              details: dep,
             });
+          }
+        }
+
+        // Check cross-field effect targets
+        if (rule.then.fields) {
+          for (const target of Object.keys(rule.then.fields)) {
+            if (!fieldNames.has(target)) {
+              errors.push({
+                type: "missing_rule_target",
+                fieldName,
+                message: `Field "${fieldName}" has a rule effect targeting non-existent field "${target}"`,
+                details: target,
+              });
+            }
+          }
+        }
+        if (rule.else?.fields) {
+          for (const target of Object.keys(rule.else.fields)) {
+            if (!fieldNames.has(target)) {
+              errors.push({
+                type: "missing_rule_target",
+                fieldName,
+                message: `Field "${fieldName}" has a rule else-effect targeting non-existent field "${target}"`,
+                details: target,
+              });
+            }
           }
         }
       }
     }
 
-    // Check combo dependency rule targets exist
-    if (config.dependencyRules?.rules) {
-      for (const dependsOnField of Object.keys(config.dependencyRules.rules)) {
-        if (!fieldNames.has(dependsOnField)) {
-          errors.push({
-            type: "missing_dependency_target",
-            fieldName,
-            message: `Field "${fieldName}" has combo rule depending on non-existent field "${dependsOnField}"`,
-            details: dependsOnField,
-          });
-        }
-      }
-    }
-
-    // Check dropdown dependency targets exist
-    if (config.dropdownDependencies) {
-      for (const [value, dependentFields] of Object.entries(config.dropdownDependencies)) {
-        for (const targetField of Object.keys(dependentFields)) {
-          if (!fieldNames.has(targetField)) {
-            errors.push({
-              type: "missing_dependency_target",
-              fieldName,
-              message: `Field "${fieldName}" has dropdown dependency for value "${value}" targeting non-existent field "${targetField}"`,
-              details: targetField,
-            });
-          }
-        }
-      }
-    }
-
-    // Check component types are registered (if registry provided)
-    if (registeredComponents && config.component && !registeredComponents.has(config.component)) {
+    // Check component types are registered
+    if (registeredComponents && config.type && !registeredComponents.has(config.type)) {
       errors.push({
         type: "unregistered_component",
         fieldName,
-        message: `Field "${fieldName}" uses unregistered component type "${config.component}". Available: ${[...registeredComponents].join(", ")}`,
-        details: config.component,
+        message: `Field "${fieldName}" uses unregistered component type "${config.type}". Available: ${[...registeredComponents].join(", ")}`,
+        details: config.type,
       });
     }
 
-    // Check validation names reference registered validators
-    if (config.validations) {
-      for (const validationName of config.validations) {
-        if (!getValidation(validationName)) {
+    // Check validator names
+    if (config.validate) {
+      for (const rule of config.validate) {
+        if (!getValidator(rule.name)) {
           errors.push({
-            type: "unregistered_validation",
+            type: "unregistered_validator",
             fieldName,
-            message: `Field "${fieldName}" references unregistered validation "${validationName}"`,
-            details: validationName,
+            message: `Field "${fieldName}" references unregistered validator "${rule.name}"`,
+            details: rule.name,
           });
         }
       }
     }
 
-    // Check async validation names reference registered validators
-    if (config.asyncValidations) {
-      for (const validationName of config.asyncValidations) {
-        if (!getAsyncValidation(validationName)) {
-          errors.push({
-            type: "unregistered_async_validation",
-            fieldName,
-            message: `Field "${fieldName}" references unregistered async validation "${validationName}"`,
-            details: validationName,
-          });
-        }
-      }
-    }
-
-    // Check dropdown fields have options configured
+    // Check dropdown fields have options
     if (
-      (config.component === "Dropdown" || config.component === "StatusDropdown" || config.component === "Multiselect") &&
-      (!config.dropdownOptions || config.dropdownOptions.length === 0) &&
-      !config.dropdownDependencies &&
-      !hasDropdownDependencyFrom(fieldName, fieldConfigs)
+      (config.type === "Dropdown" || config.type === "StatusDropdown" || config.type === "Multiselect") &&
+      (!config.options || config.options.length === 0) &&
+      !hasRuleProvidingOptions(fieldName, fields)
     ) {
       errors.push({
-        type: "missing_dropdown_options",
+        type: "missing_options",
         fieldName,
-        message: `Field "${fieldName}" is a ${config.component} but has no dropdown options configured and no dropdown dependencies providing options`,
+        message: `Field "${fieldName}" is a ${config.type} but has no options configured and no rules providing options`,
       });
     }
   }
 
-  // Check for circular dependencies
-  const defaultRules = GetDefaultBusinessRules(fieldConfigs);
-  const cycleErrors = detectDependencyCycles(defaultRules);
+  // Check for circular/self dependencies
+  const cycleErrors = detectDependencyCycles(fields);
   for (const cycleError of cycleErrors) {
     errors.push({
       type: "circular_dependency",
@@ -152,15 +127,28 @@ export function validateFieldConfigs(
     });
   }
 
+  const selfErrors = detectSelfDependencies(fields);
+  for (const selfError of selfErrors) {
+    errors.push({
+      type: "self_dependency",
+      fieldName: selfError.fields[0] ?? "",
+      message: selfError.message,
+    });
+  }
+
   return errors;
 }
 
-/** Checks if any other field's dropdownDependencies provides options for this field */
-function hasDropdownDependencyFrom(targetFieldName: string, fieldConfigs: Dictionary<IFieldConfig>): boolean {
-  for (const config of Object.values(fieldConfigs)) {
-    if (config.dropdownDependencies) {
-      for (const dependentFields of Object.values(config.dropdownDependencies)) {
-        if (targetFieldName in dependentFields) return true;
+/** Checks if any rule provides options for a field */
+function hasRuleProvidingOptions(
+  targetFieldName: string,
+  fields: Record<string, IFieldConfig>
+): boolean {
+  for (const config of Object.values(fields)) {
+    if (config.rules) {
+      for (const rule of config.rules) {
+        if (rule.then.fields?.[targetFieldName]?.options) return true;
+        if (rule.else?.fields?.[targetFieldName]?.options) return true;
       }
     }
   }

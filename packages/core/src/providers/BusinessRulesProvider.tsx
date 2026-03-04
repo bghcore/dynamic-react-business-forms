@@ -1,172 +1,90 @@
-import { Dictionary, IEntityData } from "../utils";
+import { IEntityData } from "../utils";
 import React from "react";
-import {
-  CombineBusinessRules,
-  GetFieldValue,
-  ProcessAllBusinessRules,
-  ProcessComboFieldBusinessRule,
-  ProcessFieldBusinessRule,
-  ProcessFieldDropdownValues,
-  ProcessFieldOrderDepencendies,
-  ProcessPreviousFieldBusinessRule,
-  RevertFieldBusinessRule,
-  SameFieldOrder
-} from "../helpers/BusinessRulesHelper";
-import { IBusinessRule } from "../types/IBusinessRule";
-import { ActionTypeKeys } from "../types/IBusinessRuleActionKeys";
-import { IConfigBusinessRules } from "../types/IConfigBusinessRules";
 import { IFieldConfig } from "../types/IFieldConfig";
-import businessRulesReducer from "../reducers/BusinessRulesReducer";
-import { IBusinessRulesProvider, defaultBusinessRulesState } from "./IBusinessRulesProvider";
+import { IRuntimeFormState } from "../types/IRuntimeFieldState";
+import { RulesEngineActionType } from "../types/IRulesEngineAction";
+import { evaluateAllRules, evaluateAffectedFields } from "../helpers/RuleEngine";
+import rulesEngineReducer, { defaultRulesEngineState } from "../reducers/BusinessRulesReducer";
+import { IRulesEngineProvider } from "./IBusinessRulesProvider";
 
-const BusinessRulesContext: React.Context<IBusinessRulesProvider> = React.createContext(undefined as unknown as IBusinessRulesProvider);
+const RulesEngineContext: React.Context<IRulesEngineProvider> = React.createContext(
+  undefined as unknown as IRulesEngineProvider
+);
 
-export function UseBusinessRulesContext() {
-  const context = React.useContext(BusinessRulesContext);
+export function UseRulesEngineContext() {
+  const context = React.useContext(RulesEngineContext);
   if (context === undefined) {
     throw new Error(
-      "UseBusinessRulesContext() was called outside of <BusinessRulesProvider>. " +
-      "Required hierarchy: <BusinessRulesProvider> > <InjectedHookFieldProvider> > <HookInlineForm>"
+      "UseRulesEngineContext() was called outside of <RulesEngineProvider>. " +
+      "Required hierarchy: <RulesEngineProvider> > <InjectedFieldProvider> > <DynamicForm>"
     );
   }
   return context;
 }
 
-export const BusinessRulesProvider: React.FC<React.PropsWithChildren<{}>> = (
+
+export const RulesEngineProvider: React.FC<React.PropsWithChildren<{}>> = (
   props: React.PropsWithChildren<{}>
 ): React.JSX.Element => {
-  const [businessRules, businessRulesDispatch] = React.useReducer(businessRulesReducer, defaultBusinessRulesState);
+  const [rulesState, dispatch] = React.useReducer(rulesEngineReducer, defaultRulesEngineState);
 
-  const initBusinessRules = React.useCallback((
+  const initFormState = React.useCallback((
     configName: string,
     defaultValues: IEntityData,
-    fieldConfigs: Dictionary<IFieldConfig>,
-    areAllFieldsReadonly?: boolean,
-    defaultFieldRules?: Dictionary<IBusinessRule>
-  ): IConfigBusinessRules => {
-    const configBusinessRules = ProcessAllBusinessRules(
-      defaultValues,
-      fieldConfigs,
-      areAllFieldsReadonly,
-      defaultFieldRules
-    );
+    fields: Record<string, IFieldConfig>,
+    areAllFieldsReadonly?: boolean
+  ): IRuntimeFormState => {
+    const formState = evaluateAllRules(fields, defaultValues, areAllFieldsReadonly);
 
-    businessRulesDispatch({
-      type: ActionTypeKeys.BUSINESSRULES_SET,
-      payload: { configName, configBusinessRules }
+    dispatch({
+      type: RulesEngineActionType.SET,
+      payload: { configName, formState },
     });
 
-    return configBusinessRules;
+    return formState;
   }, []);
 
-  const clearBusinessRules = React.useCallback((configName?: string) => {
-    businessRulesDispatch({
-      type: ActionTypeKeys.BUSINESSRULES_CLEAR,
-      payload: { configName }
+  const clearFormState = React.useCallback((configName?: string) => {
+    dispatch({
+      type: RulesEngineActionType.CLEAR,
+      payload: { configName },
     });
   }, []);
 
-  const processBusinessRule = React.useCallback((
+  const processFieldChange = React.useCallback((
     entityData: IEntityData,
     configName: string,
     fieldName: string,
-    previousValue: string,
-    fieldConfigs: Dictionary<IFieldConfig>
+    fields: Record<string, IFieldConfig>
   ) => {
-    if (
-      (businessRules.configRules?.[configName]?.fieldRules[fieldName]?.dependentFields?.length ?? 0) > 0 ||
-      (businessRules.configRules?.[configName]?.fieldRules[fieldName]?.dependsOnFields?.length ?? 0) > 0 ||
-      businessRules.configRules?.[configName]?.fieldRules[fieldName]?.pivotalRootField ||
-      (businessRules.configRules?.[configName]?.fieldRules[fieldName]?.comboDependentFields?.length ?? 0) > 0 ||
-      (businessRules.configRules?.[configName]?.fieldRules[fieldName]?.dependentDropdownFields?.length ?? 0) > 0
-    ) {
-      let pendingBusinessRules: IConfigBusinessRules = {
-        fieldRules: {},
-        order: [...businessRules.configRules[configName].order]
-      };
+    const currentState = rulesState.configs[configName];
+    if (!currentState) return;
 
-      pendingBusinessRules = CombineBusinessRules(
-        pendingBusinessRules,
-        RevertFieldBusinessRule(fieldName, previousValue, businessRules.configRules[configName], fieldConfigs)
-      );
+    const hasAnyDeps =
+      (currentState.fieldStates[fieldName]?.dependentFields?.length ?? 0) > 0 ||
+      (currentState.fieldStates[fieldName]?.dependsOnFields?.length ?? 0) > 0;
 
-      pendingBusinessRules = CombineBusinessRules(
-        pendingBusinessRules,
-        ProcessPreviousFieldBusinessRule(
-          fieldName,
-          previousValue,
-          businessRules.configRules[configName],
-          fieldConfigs,
-          entityData,
-          pendingBusinessRules.fieldRules
-        )
-      );
+    if (!hasAnyDeps) return;
 
-      pendingBusinessRules = CombineBusinessRules(
-        pendingBusinessRules,
-        ProcessFieldBusinessRule(
-          fieldName,
-          GetFieldValue(entityData, fieldName),
-          businessRules.configRules[configName],
-          fieldConfigs,
-          pendingBusinessRules.fieldRules
-        )
-      );
+    const updatedState = evaluateAffectedFields(fieldName, fields, entityData, currentState);
 
-      businessRules.configRules[configName].fieldRules[fieldName].comboDependentFields?.forEach(dependentField => {
-        pendingBusinessRules = CombineBusinessRules(pendingBusinessRules, {
-          fieldRules: ProcessComboFieldBusinessRule(
-            dependentField,
-            businessRules.configRules[configName].fieldRules[dependentField],
-            fieldConfigs[dependentField],
-            entityData,
-            pendingBusinessRules.fieldRules[dependentField]
-          ),
-          order: []
-        });
-      });
+    dispatch({
+      type: RulesEngineActionType.UPDATE,
+      payload: { configName, formState: updatedState },
+    });
+  }, [rulesState]);
 
-      pendingBusinessRules = CombineBusinessRules(
-        pendingBusinessRules,
-        ProcessFieldDropdownValues(
-          fieldName,
-          entityData,
-          businessRules.configRules[configName],
-          fieldConfigs,
-          pendingBusinessRules.fieldRules
-        )
-      );
+  const providerValue: IRulesEngineProvider = React.useMemo(() => ({
+    rulesState,
+    initFormState,
+    processFieldChange,
+    clearFormState,
+  }), [rulesState, initFormState, processFieldChange, clearFormState]);
 
-      if (businessRules.configRules?.[configName]?.fieldRules[fieldName]?.pivotalRootField) {
-        pendingBusinessRules = CombineBusinessRules(
-          pendingBusinessRules,
-          ProcessFieldOrderDepencendies(
-            businessRules.configRules?.[configName]?.fieldRules[fieldName]?.pivotalRootField,
-            fieldConfigs,
-            entityData
-          ),
-          true
-        );
-      }
-
-      if (
-        Object.keys(pendingBusinessRules.fieldRules).length > 0 ||
-        !SameFieldOrder(pendingBusinessRules.order, businessRules.configRules[configName].order)
-      ) {
-        businessRulesDispatch({
-          type: ActionTypeKeys.BUSINESSRULES_UPDATE,
-          payload: { configName, configBusinessRules: pendingBusinessRules }
-        });
-      }
-    }
-  }, [businessRules]);
-
-  const providerValue: IBusinessRulesProvider = React.useMemo(() => ({
-    businessRules,
-    initBusinessRules,
-    processBusinessRule,
-    clearBusinessRules
-  }), [businessRules, initBusinessRules, processBusinessRule, clearBusinessRules]);
-
-  return <BusinessRulesContext.Provider value={providerValue}>{props.children}</BusinessRulesContext.Provider>;
+  return (
+    <RulesEngineContext.Provider value={providerValue}>
+      {props.children}
+    </RulesEngineContext.Provider>
+  );
 };
+

@@ -1,16 +1,16 @@
-import { IHookFieldSharedProps } from "@bghcore/dynamic-forms-core";
+import { IFieldProps } from "@bghcore/dynamic-forms-core";
 import { Autocomplete, TextField, Chip, Box } from "@mui/material";
 import React from "react";
 import { FieldClassName, GetFieldDataTestId } from "../helpers";
 
-const HookMultiSelectSearch = (props: IHookFieldSharedProps<{}>) => {
-  const { fieldName, programName, entityType, entityId, value, readOnly, error, dropdownOptions, setFieldValue } = props;
+const HookMultiSelectSearch = (props: IFieldProps<{}>) => {
+  const { fieldName, programName, entityType, entityId, value, readOnly, error, options: dropdownOptions, setFieldValue } = props;
 
   const selectedValues = (value as string[]) ?? [];
 
-  const options = dropdownOptions?.map(o => ({
-    value: String(o.key),
-    label: o.text,
+  const mappedOptions = dropdownOptions?.map(o => ({
+    value: String(o.value),
+    label: o.label,
     disabled: !!o.disabled,
   })) ?? [];
 
@@ -33,10 +33,10 @@ const HookMultiSelectSearch = (props: IHookFieldSharedProps<{}>) => {
       className={FieldClassName("hook-multi-select-search", error)}
       multiple
       freeSolo
-      options={options}
+      options={mappedOptions}
       getOptionLabel={(option) => typeof option === "string" ? option : option.label}
       getOptionDisabled={(option) => typeof option === "string" ? false : !!option.disabled}
-      value={options.filter(o => selectedValues.includes(o.value))}
+      value={mappedOptions.filter(o => selectedValues.includes(o.value))}
       onChange={onChange}
       renderTags={(tagValue, getTagProps) =>
         tagValue.map((option, index) => (

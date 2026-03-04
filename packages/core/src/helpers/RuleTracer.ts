@@ -1,13 +1,14 @@
-import { IBusinessRule } from "../types/IBusinessRule";
+import { IRuntimeFieldState } from "../types/IRuntimeFieldState";
 
 export interface IRuleTraceEvent {
   timestamp: number;
-  type: "revert" | "apply" | "combo" | "dropdown" | "order" | "init";
+  type: "evaluate" | "apply" | "revert" | "init";
   triggerField: string;
   triggerValue: unknown;
   affectedField: string;
-  previousState?: Partial<IBusinessRule>;
-  newState?: Partial<IBusinessRule>;
+  ruleId?: string;
+  previousState?: Partial<IRuntimeFieldState>;
+  newState?: Partial<IRuntimeFieldState>;
 }
 
 let traceEnabled = false;

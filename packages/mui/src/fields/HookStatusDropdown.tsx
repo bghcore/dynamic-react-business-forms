@@ -1,4 +1,4 @@
-import { IHookFieldSharedProps, Dictionary } from "@bghcore/dynamic-forms-core";
+import { IFieldProps, Dictionary } from "@bghcore/dynamic-forms-core";
 import { FormControl, Select, MenuItem, Chip } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material";
 import React from "react";
@@ -25,10 +25,10 @@ const StatusDot = ({ color }: { color?: string }) => (
   />
 );
 
-const HookStatusDropdown = (props: IHookFieldSharedProps<IHookStatusDropdownProps>) => {
-  const { fieldName, programName, entityType, entityId, value, readOnly, error, meta, dropdownOptions, setFieldValue } = props;
+const HookStatusDropdown = (props: IFieldProps<IHookStatusDropdownProps>) => {
+  const { fieldName, programName, entityType, entityId, value, readOnly, error, config, options, setFieldValue } = props;
 
-  const statusColors = (meta?.statusColors ?? {}) as Dictionary<string>;
+  const statusColors = (config?.statusColors ?? {}) as Dictionary<string>;
 
   const onChange = (event: SelectChangeEvent<string>) => {
     setFieldValue(fieldName, event.target.value);
@@ -49,14 +49,14 @@ const HookStatusDropdown = (props: IHookFieldSharedProps<IHookStatusDropdownProp
           displayEmpty
           data-testid={GetFieldDataTestId(fieldName, programName, entityType, entityId)}
           renderValue={(selected) => {
-            const option = dropdownOptions?.find(o => String(o.key) === selected);
-            return option?.text ?? "";
+            const option = options?.find(o => String(o.value) === selected);
+            return option?.label ?? "";
           }}
         >
-          {dropdownOptions?.map(option => (
-            <MenuItem key={String(option.key)} value={String(option.key)} disabled={option.disabled}>
-              <StatusDot color={statusColors[String(option.key)]} />
-              {option.text}
+          {options?.map(option => (
+            <MenuItem key={String(option.value)} value={String(option.value)} disabled={option.disabled}>
+              <StatusDot color={statusColors[String(option.value)]} />
+              {option.label}
             </MenuItem>
           ))}
         </Select>

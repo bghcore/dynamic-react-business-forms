@@ -1,7 +1,7 @@
-import { IHookFieldSharedProps } from "@bghcore/dynamic-forms-core";
+import { IFieldProps } from "@bghcore/dynamic-forms-core";
 import React from "react";
 
-const HookReadOnlyRichText = (props: IHookFieldSharedProps<{}>) => {
+const HookReadOnlyRichText = (props: IFieldProps<{}>) => {
   const { value } = props;
   return (
     <div

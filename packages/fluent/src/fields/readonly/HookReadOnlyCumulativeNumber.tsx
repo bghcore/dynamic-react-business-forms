@@ -1,4 +1,4 @@
-import { IHookFieldSharedProps, isEmpty } from "@bghcore/dynamic-forms-core";
+import { IFieldProps, isEmpty } from "@bghcore/dynamic-forms-core";
 import React from "react";
 import { useFormContext } from "react-hook-form";
 import { ReadOnlyText, IReadOnlyFieldProps } from "../../components/ReadOnlyText";
@@ -7,11 +7,11 @@ interface IHookReadOnlyCumulativeNumberProps extends IReadOnlyFieldProps {
   dependencyFields?: string[];
 }
 
-const HookReadOnlyCumulativeNumber = (props: IHookFieldSharedProps<IHookReadOnlyCumulativeNumberProps>) => {
-  const { fieldName, meta } = props;
+const HookReadOnlyCumulativeNumber = (props: IFieldProps<IHookReadOnlyCumulativeNumberProps>) => {
+  const { fieldName, config } = props;
   const { formState, getValues } = useFormContext();
   const [value, setValue] = React.useState<number>();
-  const { dependencyFields } = meta || {};
+  const { dependencyFields } = config || {};
 
   React.useEffect(() => {
     const formValues = getValues();
@@ -24,7 +24,7 @@ const HookReadOnlyCumulativeNumber = (props: IHookFieldSharedProps<IHookReadOnly
     }
   }, [formState]);
 
-  return fieldName ? <ReadOnlyText fieldName={fieldName} value={String(value)} {...meta} /> : <></>;
+  return fieldName ? <ReadOnlyText fieldName={fieldName} value={String(value)} {...config} /> : <></>;
 };
 
 export default HookReadOnlyCumulativeNumber;

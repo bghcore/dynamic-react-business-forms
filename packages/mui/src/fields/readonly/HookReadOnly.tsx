@@ -1,12 +1,12 @@
-import { IHookFieldSharedProps } from "@bghcore/dynamic-forms-core";
+import { IFieldProps } from "@bghcore/dynamic-forms-core";
 import React from "react";
 import { ReadOnlyText, IReadOnlyFieldProps } from "../../components/ReadOnlyText";
 
 interface IHookReadOnlyProps extends IReadOnlyFieldProps {}
 
-const HookReadOnly = (props: IHookFieldSharedProps<IHookReadOnlyProps>) => {
-  const { fieldName, value, meta } = props;
-  return <ReadOnlyText fieldName={fieldName} value={value as string} {...meta} />;
+const HookReadOnly = (props: IFieldProps<IHookReadOnlyProps>) => {
+  const { fieldName, value, config } = props;
+  return <ReadOnlyText fieldName={fieldName} value={value as string} {...config} />;
 };
 
 export default HookReadOnly;

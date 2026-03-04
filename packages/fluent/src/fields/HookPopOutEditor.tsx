@@ -1,4 +1,4 @@
-import { IHookFieldSharedProps, HookInlineFormStrings } from "@bghcore/dynamic-forms-core";
+import { IFieldProps, FormStrings } from "@bghcore/dynamic-forms-core";
 import { Button, Textarea, Dialog, DialogSurface, DialogBody, DialogTitle, DialogContent, DialogActions } from "@fluentui/react-components";
 import { FullScreenMaximizeRegular, DismissRegular } from "@fluentui/react-icons";
 import React, { useState } from "react";
@@ -16,9 +16,9 @@ interface IHookPopOutEditorProps {
   renderExtraModalFooter?: () => React.ReactNode;
 }
 
-const HookPopOutEditor = (props: IHookFieldSharedProps<IHookPopOutEditorProps>) => {
+const HookPopOutEditor = (props: IFieldProps<IHookPopOutEditorProps>) => {
   const {
-    error, fieldName, programName, entityType, entityId, meta, readOnly,
+    error, fieldName, programName, entityType, entityId, config, readOnly,
     required, savePending, saving, value, label, setFieldValue
   } = props;
 
@@ -40,7 +40,7 @@ const HookPopOutEditor = (props: IHookFieldSharedProps<IHookPopOutEditorProps>) 
     setFieldValue(fieldName, modalValue, false);
     setDialogVisible(false);
     setModalVisible(false);
-    meta?.saveCallback?.();
+    config?.saveCallback?.();
   };
 
   const onCancelButtonClick = () => {
@@ -59,7 +59,7 @@ const HookPopOutEditor = (props: IHookFieldSharedProps<IHookPopOutEditorProps>) 
       <ReadOnlyText
         fieldName={fieldName}
         value={value ? `${value}` : ""}
-        ellipsifyTextCharacters={meta?.ellipsifyTextCharacters}
+        ellipsifyTextCharacters={config?.ellipsifyTextCharacters}
       />
     );
   }
@@ -74,16 +74,16 @@ const HookPopOutEditor = (props: IHookFieldSharedProps<IHookPopOutEditorProps>) 
           value={modalVisible ? `${modalValue}` : value ? `${value}` : ""}
           onChange={onChange}
           data-testid={GetFieldDataTestId(fieldName, programName, entityType, entityId)}
-          rows={meta?.numberOfRows ?? 4}
+          rows={config?.numberOfRows ?? 4}
         />
         <Button
           className="expand-button"
           appearance="secondary"
           icon={<FullScreenMaximizeRegular />}
           onClick={onExpandButtonClick}
-          aria-label={HookInlineFormStrings.openExpandedTextEditor}
+          aria-label={FormStrings.openExpandedTextEditor}
         >
-          {HookInlineFormStrings.expand}
+          {FormStrings.expand}
         </Button>
       </div>
 
@@ -93,7 +93,7 @@ const HookPopOutEditor = (props: IHookFieldSharedProps<IHookPopOutEditorProps>) 
             <DialogTitle
               action={
                 <Button appearance="subtle" icon={<DismissRegular />} onClick={onCancelButtonClick}
-                  aria-label={HookInlineFormStrings.closeExpandedTextEditor} />
+                  aria-label={FormStrings.closeExpandedTextEditor} />
               }
             >
               {label}{required && <span className="required-indicator"> *</span>}
@@ -110,17 +110,17 @@ const HookPopOutEditor = (props: IHookFieldSharedProps<IHookPopOutEditorProps>) 
               />
             </DialogContent>
             <DialogActions>
-              {meta?.renderExtraModalFooter && <div className="custom-footer">{meta.renderExtraModalFooter()}</div>}
+              {config?.renderExtraModalFooter && <div className="custom-footer">{config.renderExtraModalFooter()}</div>}
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 {(savePending || saving) && (
                   <StatusMessage savePending={!error ? savePending : undefined} saving={saving} error={error} />
                 )}
               </div>
-              <Button appearance="secondary" onClick={onCancelButtonClick}>{HookInlineFormStrings.cancel}</Button>
+              <Button appearance="secondary" onClick={onCancelButtonClick}>{FormStrings.cancel}</Button>
               <Button appearance="primary" onClick={onSaveButtonClick}
-                disabled={!meta?.saveCallback && modalValue === (value as string)}
+                disabled={!config?.saveCallback && modalValue === (value as string)}
                 data-testid={`${programName}-${entityType}-${entityId}-save-note`}>
-                {meta?.saveCallback ? HookInlineFormStrings.save : HookInlineFormStrings.save}
+                {config?.saveCallback ? FormStrings.save : FormStrings.save}
               </Button>
             </DialogActions>
           </DialogBody>
@@ -130,11 +130,11 @@ const HookPopOutEditor = (props: IHookFieldSharedProps<IHookPopOutEditorProps>) 
       <Dialog open={dialogVisible} onOpenChange={(_, data) => { if (!data.open) setDialogVisible(false); }}>
         <DialogSurface>
           <DialogBody>
-            <DialogTitle>{HookInlineFormStrings.unsavedChanges}</DialogTitle>
-            <DialogContent>{HookInlineFormStrings.saveChangesTo(label)}</DialogContent>
+            <DialogTitle>{FormStrings.unsavedChanges}</DialogTitle>
+            <DialogContent>{FormStrings.saveChangesTo(label)}</DialogContent>
             <DialogActions>
-              <Button appearance="secondary" onClick={onCancelButtonClick}>{HookInlineFormStrings.dontSave}</Button>
-              <Button appearance="primary" onClick={onSaveButtonClick}>{HookInlineFormStrings.save}</Button>
+              <Button appearance="secondary" onClick={onCancelButtonClick}>{FormStrings.dontSave}</Button>
+              <Button appearance="primary" onClick={onSaveButtonClick}>{FormStrings.save}</Button>
             </DialogActions>
           </DialogBody>
         </DialogSurface>

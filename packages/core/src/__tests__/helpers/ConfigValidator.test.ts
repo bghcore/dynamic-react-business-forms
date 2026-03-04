@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { validateFieldConfigs } from "../../helpers/ConfigValidator";
-import { Dictionary } from "../../utils";
 import { IFieldConfig } from "../../types/IFieldConfig";
-import { registerValidations, registerAsyncValidations } from "../../helpers/ValidationRegistry";
 
 describe("ConfigValidator", () => {
   afterEach(() => {
@@ -10,83 +8,92 @@ describe("ConfigValidator", () => {
   });
 
   it("returns empty array for valid simple config", () => {
-    // Suppress cycle detection warnings
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const configs: Dictionary<IFieldConfig> = {
-      name: { component: "Textbox", required: true, label: "Name" },
-      status: { component: "Dropdown", required: true, label: "Status", dropdownOptions: [{ key: "Active", text: "Active" }] },
+    const configs: Record<string, IFieldConfig> = {
+      name: { type: "Textbox", required: true, label: "Name" },
+      status: {
+        type: "Dropdown",
+        required: true,
+        label: "Status",
+        options: [{ value: "Active", label: "Active" }],
+      },
     };
 
     const errors = validateFieldConfigs(configs);
     expect(errors).toHaveLength(0);
   });
 
-  it("detects dependency targeting non-existent field", () => {
+  it("detects rule condition referencing non-existent field", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const configs: Dictionary<IFieldConfig> = {
+    const configs: Record<string, IFieldConfig> = {
       status: {
-        component: "Dropdown",
+        type: "Dropdown",
         label: "Status",
-        dependencies: {
-          Active: {
-            nonExistent: { required: true },
+        options: [{ value: "Active", label: "Active" }],
+        rules: [
+          {
+            when: { field: "nonExistent", operator: "equals", value: "X" },
+            then: { required: true },
           },
-        },
+        ],
       },
     };
 
     const errors = validateFieldConfigs(configs);
-    const depErrors = errors.filter(e => e.type === "missing_dependency_target");
-    expect(depErrors.length).toBeGreaterThan(0);
-    expect(depErrors[0].message).toContain("nonExistent");
+    const ruleErrors = errors.filter(e => e.type === "missing_rule_target");
+    expect(ruleErrors.length).toBeGreaterThan(0);
+    expect(ruleErrors[0].message).toContain("nonExistent");
   });
 
-  it("detects combo rule depending on non-existent field", () => {
+  it("detects cross-field effect targeting non-existent field", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const configs: Dictionary<IFieldConfig> = {
-      notes: {
-        component: "Textbox",
-        label: "Notes",
-        dependencyRules: {
-          updatedConfig: { required: true },
-          rules: {
-            nonExistentField: ["value1"],
+    const configs: Record<string, IFieldConfig> = {
+      status: {
+        type: "Dropdown",
+        label: "Status",
+        options: [{ value: "Active", label: "Active" }],
+        rules: [
+          {
+            when: { field: "status", operator: "equals", value: "Active" },
+            then: { fields: { nonExistentTarget: { required: true } } },
           },
-        },
+        ],
       },
     };
 
     const errors = validateFieldConfigs(configs);
-    const depErrors = errors.filter(e => e.type === "missing_dependency_target");
-    expect(depErrors.length).toBeGreaterThan(0);
-    expect(depErrors[0].message).toContain("nonExistentField");
+    const ruleErrors = errors.filter(e => e.type === "missing_rule_target");
+    expect(ruleErrors.length).toBeGreaterThan(0);
+    expect(ruleErrors[0].message).toContain("nonExistentTarget");
   });
 
-  it("detects dropdown dependency targeting non-existent field", () => {
+  it("detects else-effect targeting non-existent field", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const configs: Dictionary<IFieldConfig> = {
-      country: {
-        component: "Dropdown",
-        label: "Country",
-        dropdownOptions: [{ key: "US", text: "US" }],
-        dropdownDependencies: {
-          US: {
-            nonExistentRegion: ["East", "West"],
+    const configs: Record<string, IFieldConfig> = {
+      status: {
+        type: "Dropdown",
+        label: "Status",
+        options: [{ value: "Active", label: "Active" }],
+        rules: [
+          {
+            when: { field: "status", operator: "equals", value: "Active" },
+            then: { required: true },
+            else: { fields: { ghostField: { hidden: true } } },
           },
-        },
+        ],
       },
     };
 
     const errors = validateFieldConfigs(configs);
-    const depErrors = errors.filter(e => e.type === "missing_dependency_target");
-    expect(depErrors.length).toBeGreaterThan(0);
-    expect(depErrors[0].message).toContain("nonExistentRegion");
+    const ruleErrors = errors.filter(e => e.type === "missing_rule_target");
+    expect(ruleErrors.length).toBeGreaterThan(0);
+    expect(ruleErrors[0].message).toContain("ghostField");
   });
 
   it("detects unregistered component type when registry provided", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const configs: Dictionary<IFieldConfig> = {
-      field: { component: "CustomWidget", label: "Field" },
+    const configs: Record<string, IFieldConfig> = {
+      field: { type: "CustomWidget", label: "Field" },
     };
 
     const registeredComponents = new Set(["Textbox", "Dropdown"]);
@@ -99,8 +106,8 @@ describe("ConfigValidator", () => {
 
   it("does not flag component types when no registry provided", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const configs: Dictionary<IFieldConfig> = {
-      field: { component: "CustomWidget", label: "Field" },
+    const configs: Record<string, IFieldConfig> = {
+      field: { type: "CustomWidget", label: "Field" },
     };
 
     const errors = validateFieldConfigs(configs);
@@ -108,90 +115,64 @@ describe("ConfigValidator", () => {
     expect(compErrors).toHaveLength(0);
   });
 
-  it("detects unregistered validation name", () => {
+  it("detects unregistered validator name in validate array", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const configs: Dictionary<IFieldConfig> = {
+    const configs: Record<string, IFieldConfig> = {
       email: {
-        component: "Textbox",
+        type: "Textbox",
         label: "Email",
-        validations: ["EmailValidation", "NonExistentValidation"],
+        validate: [
+          { name: "email" },
+          { name: "NonExistentValidation" },
+        ],
       },
     };
 
     const errors = validateFieldConfigs(configs);
-    const valErrors = errors.filter(e => e.type === "unregistered_validation");
+    const valErrors = errors.filter(e => e.type === "unregistered_validator");
     expect(valErrors).toHaveLength(1);
     expect(valErrors[0].message).toContain("NonExistentValidation");
   });
 
-  it("does not flag registered validation names", () => {
+  it("does not flag registered validator names", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const configs: Dictionary<IFieldConfig> = {
+    const configs: Record<string, IFieldConfig> = {
       email: {
-        component: "Textbox",
+        type: "Textbox",
         label: "Email",
-        validations: ["EmailValidation"],
+        validate: [{ name: "email" }],
       },
     };
 
     const errors = validateFieldConfigs(configs);
-    const valErrors = errors.filter(e => e.type === "unregistered_validation");
+    const valErrors = errors.filter(e => e.type === "unregistered_validator");
     expect(valErrors).toHaveLength(0);
   });
 
-  it("detects unregistered async validation name", () => {
+  it("detects circular dependencies in rules", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const configs: Dictionary<IFieldConfig> = {
-      username: {
-        component: "Textbox",
-        label: "Username",
-        asyncValidations: ["CheckUniqueUsername"],
-      },
-    };
-
-    const errors = validateFieldConfigs(configs);
-    const asyncErrors = errors.filter(e => e.type === "unregistered_async_validation");
-    expect(asyncErrors).toHaveLength(1);
-    expect(asyncErrors[0].message).toContain("CheckUniqueUsername");
-  });
-
-  it("does not flag registered async validation names", () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
-    registerAsyncValidations({
-      CheckUniqueUsername: async () => undefined,
-    });
-
-    const configs: Dictionary<IFieldConfig> = {
-      username: {
-        component: "Textbox",
-        label: "Username",
-        asyncValidations: ["CheckUniqueUsername"],
-      },
-    };
-
-    const errors = validateFieldConfigs(configs);
-    const asyncErrors = errors.filter(e => e.type === "unregistered_async_validation");
-    expect(asyncErrors).toHaveLength(0);
-  });
-
-  it("detects circular dependencies", () => {
-    vi.spyOn(console, "warn").mockImplementation(() => {});
-    const configs: Dictionary<IFieldConfig> = {
+    const configs: Record<string, IFieldConfig> = {
       fieldA: {
-        component: "Dropdown",
+        type: "Dropdown",
         label: "A",
-        dropdownOptions: [{ key: "x", text: "X" }],
-        dependencies: {
-          x: { fieldB: { required: true } },
-        },
+        options: [{ value: "x", label: "X" }],
+        rules: [
+          {
+            when: { field: "fieldA", operator: "equals", value: "x" },
+            then: { fields: { fieldB: { required: true } } },
+          },
+        ],
       },
       fieldB: {
-        component: "Dropdown",
+        type: "Dropdown",
         label: "B",
-        dropdownOptions: [{ key: "y", text: "Y" }],
-        dependencies: {
-          y: { fieldA: { required: true } },
-        },
+        options: [{ value: "y", label: "Y" }],
+        rules: [
+          {
+            when: { field: "fieldB", operator: "equals", value: "y" },
+            then: { fields: { fieldA: { required: true } } },
+          },
+        ],
       },
     };
 
@@ -200,42 +181,54 @@ describe("ConfigValidator", () => {
     expect(cycleErrors.length).toBeGreaterThan(0);
   });
 
-  it("warns about dropdown without options and no incoming dependency", () => {
+  it("warns about dropdown without options and no rules providing them", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const configs: Dictionary<IFieldConfig> = {
+    const configs: Record<string, IFieldConfig> = {
       status: {
-        component: "Dropdown",
+        type: "Dropdown",
         label: "Status",
-        // No dropdownOptions, no dropdownDependencies
+        // No options, no rules providing options
       },
     };
 
     const errors = validateFieldConfigs(configs);
-    const ddErrors = errors.filter(e => e.type === "missing_dropdown_options");
+    const ddErrors = errors.filter(e => e.type === "missing_options");
     expect(ddErrors).toHaveLength(1);
-    expect(ddErrors[0].message).toContain("no dropdown options");
+    expect(ddErrors[0].message).toContain("no options");
   });
 
-  it("does not warn about dropdown with options from another field's dependency", () => {
+  it("does not warn about dropdown when a rule provides options", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    const configs: Dictionary<IFieldConfig> = {
+    const configs: Record<string, IFieldConfig> = {
       country: {
-        component: "Dropdown",
+        type: "Dropdown",
         label: "Country",
-        dropdownOptions: [{ key: "US", text: "US" }],
-        dropdownDependencies: {
-          US: { region: ["East", "West"] },
-        },
+        options: [{ value: "US", label: "US" }],
+        rules: [
+          {
+            when: { field: "country", operator: "equals", value: "US" },
+            then: {
+              fields: {
+                region: {
+                  options: [
+                    { value: "East", label: "East" },
+                    { value: "West", label: "West" },
+                  ],
+                },
+              },
+            },
+          },
+        ],
       },
       region: {
-        component: "Dropdown",
+        type: "Dropdown",
         label: "Region",
-        // No options, but country's dropdownDependencies provides them
+        // No options, but country's rule provides them
       },
     };
 
     const errors = validateFieldConfigs(configs);
-    const ddErrors = errors.filter(e => e.type === "missing_dropdown_options" && e.fieldName === "region");
+    const ddErrors = errors.filter(e => e.type === "missing_options" && e.fieldName === "region");
     expect(ddErrors).toHaveLength(0);
   });
 
@@ -243,5 +236,25 @@ describe("ConfigValidator", () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const errors = validateFieldConfigs({});
     expect(errors).toHaveLength(0);
+  });
+
+  it("detects self-dependency", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const configs: Record<string, IFieldConfig> = {
+      field: {
+        type: "Textbox",
+        label: "Field",
+        rules: [
+          {
+            when: { field: "field", operator: "equals", value: "x" },
+            then: { fields: { field: { required: true } } },
+          },
+        ],
+      },
+    };
+
+    const errors = validateFieldConfigs(configs);
+    const selfErrors = errors.filter(e => e.type === "self_dependency");
+    expect(selfErrors.length).toBeGreaterThan(0);
   });
 });

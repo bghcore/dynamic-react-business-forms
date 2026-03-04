@@ -1,53 +1,57 @@
-import { isNull } from "../utils";
-import BusinessRulesActionType from "../types/IBusinessRuleAction";
-import { ActionTypeKeys } from "../types/IBusinessRuleActionKeys";
-import { IBusinessRulesState } from "../types/IBusinessRulesState";
-import { defaultBusinessRulesState } from "../providers/IBusinessRulesProvider";
+import { RulesEngineActionType, RulesEngineAction } from "../types/IRulesEngineAction";
+import { IRulesEngineState } from "../types/IRuntimeFieldState";
 
-const businessRulesReducer = (state: IBusinessRulesState = defaultBusinessRulesState, action: BusinessRulesActionType): IBusinessRulesState => {
+export const defaultRulesEngineState: IRulesEngineState = {
+  configs: {},
+};
+
+const rulesEngineReducer = (
+  state: IRulesEngineState = defaultRulesEngineState,
+  action: RulesEngineAction
+): IRulesEngineState => {
   switch (action.type) {
-    case ActionTypeKeys.BUSINESSRULES_SET: {
-      const configName = action.payload.configName!;
+    case RulesEngineActionType.SET: {
+      const configName = action.payload.configName;
       return {
-        configRules: {
-          ...state.configRules,
-          [configName]: { ...action.payload.configBusinessRules! }
-        }
+        configs: {
+          ...state.configs,
+          [configName]: { ...action.payload.formState },
+        },
       };
     }
-    case ActionTypeKeys.BUSINESSRULES_UPDATE: {
-      const configName = action.payload.configName!;
-      const existingConfig = state.configRules[configName];
-      if (!existingConfig) return state;
+    case RulesEngineActionType.UPDATE: {
+      const configName = action.payload.configName;
+      const existing = state.configs[configName];
+      if (!existing) return state;
 
-      const updatedFieldRules = { ...existingConfig.fieldRules };
-      Object.keys(action.payload.configBusinessRules!.fieldRules).forEach(fieldName => {
-        updatedFieldRules[fieldName] = {
-          ...updatedFieldRules[fieldName],
-          ...action.payload.configBusinessRules!.fieldRules[fieldName]
+      const updatedFieldStates = { ...existing.fieldStates };
+      Object.keys(action.payload.formState.fieldStates).forEach(fieldName => {
+        updatedFieldStates[fieldName] = {
+          ...updatedFieldStates[fieldName],
+          ...action.payload.formState.fieldStates[fieldName],
         };
       });
 
       return {
-        configRules: {
-          ...state.configRules,
+        configs: {
+          ...state.configs,
           [configName]: {
-            fieldRules: updatedFieldRules,
-            order: action.payload.configBusinessRules!.order
-          }
-        }
+            fieldStates: updatedFieldStates,
+            fieldOrder: action.payload.formState.fieldOrder,
+          },
+        },
       };
     }
-    case ActionTypeKeys.BUSINESSRULES_CLEAR: {
+    case RulesEngineActionType.CLEAR: {
       if (action.payload.configName) {
-        const { [action.payload.configName]: _, ...remaining } = state.configRules;
-        return { configRules: remaining };
+        const { [action.payload.configName]: _, ...remaining } = state.configs;
+        return { configs: remaining };
       }
-      return defaultBusinessRulesState;
+      return defaultRulesEngineState;
     }
     default:
       return state;
   }
 };
 
-export default businessRulesReducer;
+export default rulesEngineReducer;

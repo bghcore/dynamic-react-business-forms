@@ -1,59 +1,50 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
-  registerCrossFieldValidations,
-  getCrossFieldValidation,
-  CrossFieldValidationFunction,
+  registerValidators,
+  resetValidatorRegistry,
+  runSyncValidations,
+  runValidations,
+  ValidatorFn,
+  IValidationContext,
 } from "../../helpers/ValidationRegistry";
-import { CheckCrossFieldValidationRules } from "../../helpers/HookInlineFormHelper";
+import { IValidationRule } from "../../types/IValidationRule";
 
-describe("CrossFieldValidation", () => {
-  describe("registerCrossFieldValidations", () => {
-    it("registers validators that can be retrieved", () => {
-      const validator: CrossFieldValidationFunction = (values, fieldName) => {
-        return values[fieldName] === "bad" ? "Field is bad" : undefined;
+describe("CrossFieldValidation (unified registry)", () => {
+  beforeEach(() => {
+    resetValidatorRegistry();
+  });
+
+  describe("registering cross-field validators", () => {
+    it("registers validators that access context.values", () => {
+      const validator: ValidatorFn = (value, params, context) => {
+        return context.values[context.fieldName] === "bad" ? "Field is bad" : undefined;
       };
 
-      registerCrossFieldValidations({ TestValidator: validator });
+      registerValidators({ TestCrossField: validator });
 
-      const retrieved = getCrossFieldValidation("TestValidator");
-      expect(retrieved).toBeDefined();
-      expect(typeof retrieved).toBe("function");
+      const ctx: IValidationContext = { fieldName: "myField", values: { myField: "bad" } };
+      const rules: IValidationRule[] = [{ name: "TestCrossField" }];
+
+      const result = runSyncValidations("bad", rules, ctx);
+      expect(result).toBe("Field is bad");
     });
 
     it("merges with previously registered validators", () => {
-      registerCrossFieldValidations({
-        ValidatorA: () => undefined,
-      });
-      registerCrossFieldValidations({
-        ValidatorB: () => undefined,
-      });
+      registerValidators({ ValidatorA: () => undefined });
+      registerValidators({ ValidatorB: () => undefined });
 
-      expect(getCrossFieldValidation("ValidatorA")).toBeDefined();
-      expect(getCrossFieldValidation("ValidatorB")).toBeDefined();
+      const ctxA: IValidationContext = { fieldName: "test", values: {} };
+      expect(runSyncValidations("x", [{ name: "ValidatorA" }], ctxA)).toBeUndefined();
+      expect(runSyncValidations("x", [{ name: "ValidatorB" }], ctxA)).toBeUndefined();
     });
   });
 
-  describe("getCrossFieldValidation", () => {
-    it("returns the registered function", () => {
-      const myValidator: CrossFieldValidationFunction = () => "error";
-      registerCrossFieldValidations({ MyValidator: myValidator });
-
-      const retrieved = getCrossFieldValidation("MyValidator");
-      expect(retrieved).toBe(myValidator);
-    });
-
-    it("returns undefined for unknown validator names", () => {
-      const result = getCrossFieldValidation("NonExistentCrossFieldValidator");
-      expect(result).toBeUndefined();
-    });
-  });
-
-  describe("CheckCrossFieldValidationRules", () => {
+  describe("cross-field validation via runSyncValidations", () => {
     it("runs validators with all form values and field name", () => {
-      const dateRangeValidator: CrossFieldValidationFunction = (values, fieldName) => {
-        if (fieldName === "endDate") {
-          const start = values.startDate as number;
-          const end = values.endDate as number;
+      const dateRangeValidator: ValidatorFn = (_value, _params, context) => {
+        if (context.fieldName === "endDate") {
+          const start = context.values.startDate as number;
+          const end = context.values.endDate as number;
           if (start != null && end != null && end < start) {
             return "End date must be after start date";
           }
@@ -61,94 +52,101 @@ describe("CrossFieldValidation", () => {
         return undefined;
       };
 
-      registerCrossFieldValidations({ DateRangeCheck: dateRangeValidator });
+      registerValidators({ DateRangeCheck: dateRangeValidator });
 
       const values = { startDate: 100, endDate: 50 };
-      const result = CheckCrossFieldValidationRules(
-        values,
-        "endDate",
-        ["DateRangeCheck"]
-      );
+      const ctx: IValidationContext = { fieldName: "endDate", values };
+      const rules: IValidationRule[] = [{ name: "DateRangeCheck" }];
+
+      const result = runSyncValidations(50, rules, ctx);
       expect(result).toBe("End date must be after start date");
     });
 
     it("returns first error found when multiple validators fail", () => {
-      registerCrossFieldValidations({
+      registerValidators({
         FirstFailer: () => "First error",
         SecondFailer: () => "Second error",
       });
 
-      const result = CheckCrossFieldValidationRules(
-        { someField: "value" },
-        "someField",
-        ["FirstFailer", "SecondFailer"]
-      );
+      const ctx: IValidationContext = { fieldName: "someField", values: { someField: "value" } };
+      const rules: IValidationRule[] = [
+        { name: "FirstFailer" },
+        { name: "SecondFailer" },
+      ];
+
+      const result = runSyncValidations("value", rules, ctx);
       expect(result).toBe("First error");
     });
 
     it("returns undefined when all validators pass", () => {
-      registerCrossFieldValidations({
+      registerValidators({
         AlwaysPasses: () => undefined,
         AlsoAlwaysPasses: () => undefined,
       });
 
-      const result = CheckCrossFieldValidationRules(
-        { field: "value" },
-        "field",
-        ["AlwaysPasses", "AlsoAlwaysPasses"]
-      );
+      const ctx: IValidationContext = { fieldName: "field", values: { field: "value" } };
+      const rules: IValidationRule[] = [
+        { name: "AlwaysPasses" },
+        { name: "AlsoAlwaysPasses" },
+      ];
+
+      const result = runSyncValidations("value", rules, ctx);
       expect(result).toBeUndefined();
     });
 
     it("skips unknown validator names without error", () => {
-      registerCrossFieldValidations({
+      registerValidators({
         KnownValidator: () => undefined,
       });
 
-      const result = CheckCrossFieldValidationRules(
-        { field: "value" },
-        "field",
-        ["UnknownValidator123", "KnownValidator"]
-      );
+      const ctx: IValidationContext = { fieldName: "field", values: { field: "value" } };
+      const rules: IValidationRule[] = [
+        { name: "UnknownValidator123" },
+        { name: "KnownValidator" },
+      ];
+
+      const result = runSyncValidations("value", rules, ctx);
       expect(result).toBeUndefined();
     });
 
     it("returns error from known validator even when preceded by unknown ones", () => {
-      registerCrossFieldValidations({
+      registerValidators({
         FailingValidator: () => "This failed",
       });
 
-      const result = CheckCrossFieldValidationRules(
-        { field: "value" },
-        "field",
-        ["CompletelyUnknown", "FailingValidator"]
-      );
+      const ctx: IValidationContext = { fieldName: "field", values: { field: "value" } };
+      const rules: IValidationRule[] = [
+        { name: "CompletelyUnknown" },
+        { name: "FailingValidator" },
+      ];
+
+      const result = runSyncValidations("value", rules, ctx);
       expect(result).toBe("This failed");
     });
 
     it("handles empty validations array", () => {
-      const result = CheckCrossFieldValidationRules(
-        { field: "value" },
-        "field",
-        []
-      );
+      const ctx: IValidationContext = { fieldName: "field", values: { field: "value" } };
+      const result = runSyncValidations("value", [], ctx);
       expect(result).toBeUndefined();
     });
 
-    it("passes entityData and fieldName correctly to validator", () => {
+    it("passes context correctly to validator", () => {
       let capturedValues: Record<string, unknown> | undefined;
       let capturedFieldName: string | undefined;
 
-      registerCrossFieldValidations({
-        CaptureArgs: (values, fieldName) => {
-          capturedValues = values;
-          capturedFieldName = fieldName;
+      registerValidators({
+        CaptureArgs: (_value, _params, context) => {
+          capturedValues = context.values;
+          capturedFieldName = context.fieldName;
           return undefined;
         },
       });
 
       const entityData = { a: 1, b: "two", c: true };
-      CheckCrossFieldValidationRules(entityData, "testField", ["CaptureArgs"]);
+      const ctx: IValidationContext = { fieldName: "testField", values: entityData };
+      const rules: IValidationRule[] = [{ name: "CaptureArgs" }];
+
+      runSyncValidations("test", rules, ctx);
 
       expect(capturedValues).toBe(entityData);
       expect(capturedFieldName).toBe("testField");

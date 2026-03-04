@@ -33,7 +33,7 @@ describe("zodSchemaToFieldConfig", () => {
     const result = zodSchemaToFieldConfig(schema);
 
     expect(result.name).toBeDefined();
-    expect(result.name.component).toBe("Textbox");
+    expect(result.name.type).toBe("Textbox");
     expect(result.name.required).toBe(true);
   });
 
@@ -42,7 +42,7 @@ describe("zodSchemaToFieldConfig", () => {
     const result = zodSchemaToFieldConfig(schema);
 
     expect(result.age).toBeDefined();
-    expect(result.age.component).toBe("Number");
+    expect(result.age.type).toBe("Number");
     expect(result.age.required).toBe(true);
   });
 
@@ -51,7 +51,7 @@ describe("zodSchemaToFieldConfig", () => {
     const result = zodSchemaToFieldConfig(schema);
 
     expect(result.active).toBeDefined();
-    expect(result.active.component).toBe("Toggle");
+    expect(result.active.type).toBe("Toggle");
   });
 
   it("maps enum to Dropdown with options", () => {
@@ -61,11 +61,11 @@ describe("zodSchemaToFieldConfig", () => {
     const result = zodSchemaToFieldConfig(schema);
 
     expect(result.role).toBeDefined();
-    expect(result.role.component).toBe("Dropdown");
-    expect(result.role.dropdownOptions).toEqual([
-      { key: "admin", text: "admin" },
-      { key: "user", text: "user" },
-      { key: "guest", text: "guest" },
+    expect(result.role.type).toBe("Dropdown");
+    expect(result.role.options).toEqual([
+      { value: "admin", label: "admin" },
+      { value: "user", label: "user" },
+      { value: "guest", label: "guest" },
     ]);
   });
 
@@ -74,7 +74,7 @@ describe("zodSchemaToFieldConfig", () => {
     const result = zodSchemaToFieldConfig(schema);
 
     expect(result.startDate).toBeDefined();
-    expect(result.startDate.component).toBe("DateControl");
+    expect(result.startDate.type).toBe("DateControl");
   });
 
   it("maps array to Multiselect", () => {
@@ -84,7 +84,7 @@ describe("zodSchemaToFieldConfig", () => {
     const result = zodSchemaToFieldConfig(schema);
 
     expect(result.tags).toBeDefined();
-    expect(result.tags.component).toBe("Multiselect");
+    expect(result.tags.type).toBe("Multiselect");
   });
 
   it("marks optional fields as not required", () => {
@@ -95,29 +95,29 @@ describe("zodSchemaToFieldConfig", () => {
 
     expect(result.nickname).toBeDefined();
     expect(result.nickname.required).toBe(false);
-    expect(result.nickname.component).toBe("Textbox");
+    expect(result.nickname.type).toBe("Textbox");
   });
 
-  it("detects email check and adds EmailValidation", () => {
+  it("detects email check and adds email validation", () => {
     const schema = mockZodObject({
       email: mockZodString([{ kind: "email" }]),
     });
     const result = zodSchemaToFieldConfig(schema);
 
     expect(result.email).toBeDefined();
-    expect(result.email.component).toBe("Textbox");
-    expect(result.email.validations).toContain("EmailValidation");
+    expect(result.email.type).toBe("Textbox");
+    expect(result.email.validate!.some(v => v.name === "email")).toBe(true);
   });
 
-  it("detects url check and adds isValidUrl", () => {
+  it("detects url check and adds url validation", () => {
     const schema = mockZodObject({
       website: mockZodString([{ kind: "url" }]),
     });
     const result = zodSchemaToFieldConfig(schema);
 
     expect(result.website).toBeDefined();
-    expect(result.website.component).toBe("Textbox");
-    expect(result.website.validations).toContain("isValidUrl");
+    expect(result.website.type).toBe("Textbox");
+    expect(result.website.validate!.some(v => v.name === "url")).toBe(true);
   });
 
   it("formats camelCase field names to Title Case labels", () => {
@@ -157,7 +157,7 @@ describe("zodSchemaToFieldConfig", () => {
     const result = zodSchemaToFieldConfig(schema);
 
     expect(result.middleName.required).toBe(false);
-    expect(result.middleName.component).toBe("Textbox");
+    expect(result.middleName.type).toBe("Textbox");
   });
 
   it("handles ZodDefault by unwrapping to inner type", () => {
@@ -170,7 +170,7 @@ describe("zodSchemaToFieldConfig", () => {
     const schema = mockZodObject({ count: withDefault });
     const result = zodSchemaToFieldConfig(schema);
 
-    expect(result.count.component).toBe("Number");
+    expect(result.count.type).toBe("Number");
   });
 
   it("handles shape as a static object (not a function)", () => {
@@ -183,7 +183,7 @@ describe("zodSchemaToFieldConfig", () => {
     const result = zodSchemaToFieldConfig(schema);
 
     expect(result.name).toBeDefined();
-    expect(result.name.component).toBe("Textbox");
+    expect(result.name.type).toBe("Textbox");
   });
 
   it("maps unknown Zod type to Textbox", () => {
@@ -192,7 +192,7 @@ describe("zodSchemaToFieldConfig", () => {
     });
     const result = zodSchemaToFieldConfig(schema);
 
-    expect(result.custom.component).toBe("Textbox");
+    expect(result.custom.type).toBe("Textbox");
   });
 
   it("handles multiple checks on a single field", () => {
@@ -201,7 +201,7 @@ describe("zodSchemaToFieldConfig", () => {
     });
     const result = zodSchemaToFieldConfig(schema);
 
-    expect(result.link.validations).toContain("isValidUrl");
+    expect(result.link.validate!.some(v => v.name === "url")).toBe(true);
   });
 
   it("returns empty for null input", () => {

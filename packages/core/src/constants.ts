@@ -1,30 +1,5 @@
 export const FIELD_PARENT_PREFIX = "Parent.";
 
-export const HookInlineFormConstants = {
-  defaultExpandCutoffCount: 12,
-  loadingShimmerCount: 12,
-  loadingFieldShimmerHeight: 32,
-  na: "n/a",
-  dynamicFragment: "DynamicFragment",
-  newStatusReasonDescription: "NewStatusReasonDescription",
-  statusReasonDescription: "StatusReasonDescription",
-  dropdown: "Dropdown",
-  multiselect: "Multiselect",
-  statusDropdown: "StatusDropdown",
-  panelActionKeys: {
-    cancel: "Cancel",
-    close: "Close",
-    create: "Create",
-    update: "Update",
-  },
-  unassigned: "Unassigned",
-  defaultPeopleSearch: "a",
-  urlRegex: /(http(s?)):\/\//i,
-  errorColor: "#a4262c",
-  "150kb": 150,
-  "32kb": 32,
-};
-
 /** Component type constants */
 export const ComponentTypes = {
   Textbox: "Textbox",
@@ -51,3 +26,20 @@ export const ComponentTypes = {
   ChoiceSet: "ChoiceSet",
   FieldArray: "FieldArray",
 } as const;
+
+/** Form-level constants */
+export const FormConstants = {
+  defaultExpandCutoffCount: 12,
+  loadingShimmerCount: 12,
+  loadingFieldShimmerHeight: 32,
+  na: "n/a",
+  panelActionKeys: {
+    cancel: "Cancel",
+    close: "Close",
+    create: "Create",
+    update: "Update",
+  },
+  urlRegex: /(http(s?)):\/\//i,
+  errorColor: "#a4262c",
+} as const;
+

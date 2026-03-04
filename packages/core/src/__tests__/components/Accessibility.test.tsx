@@ -1,32 +1,32 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { HookFieldWrapper } from "../../components/HookFieldWrapper";
-import { HookWizardForm } from "../../components/HookWizardForm";
+import { FieldWrapper } from "../../components/HookFieldWrapper";
+import { WizardForm } from "../../components/HookWizardForm";
 import { IWizardConfig } from "../../types/IWizardConfig";
 import { resetLocale, getLocaleString } from "../../helpers/LocaleRegistry";
 
 /**
  * A minimal wrapper that satisfies react-hook-form's context requirement
- * for HookFieldWrapper (it doesn't use form context, so a plain render works).
+ * for FieldWrapper (it doesn't use form context, so a plain render works).
  */
 
 beforeEach(() => {
   resetLocale();
 });
 
-// ─── HookFieldWrapper accessibility tests ───────────────────────────────────
+// ─── FieldWrapper accessibility tests ───────────────────────────────────
 
-describe("HookFieldWrapper accessibility", () => {
+describe("FieldWrapper accessibility", () => {
   it("renders with aria-busy='true' when saving is true", () => {
     const { container } = render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="Test Label"
         saving={true}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const formField = container.querySelector(".form-field");
@@ -35,13 +35,13 @@ describe("HookFieldWrapper accessibility", () => {
 
   it("does not render aria-busy when saving is false", () => {
     const { container } = render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="Test Label"
         saving={false}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const formField = container.querySelector(".form-field");
@@ -50,12 +50,12 @@ describe("HookFieldWrapper accessibility", () => {
 
   it("does not render aria-busy when saving is undefined", () => {
     const { container } = render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="Test Label"
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const formField = container.querySelector(".form-field");
@@ -64,13 +64,13 @@ describe("HookFieldWrapper accessibility", () => {
 
   it("error messages have role='alert'", () => {
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="Test Label"
         error={{ type: "required", message: "This field is required" }}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const errorMessage = screen.getByRole("alert");
@@ -80,7 +80,7 @@ describe("HookFieldWrapper accessibility", () => {
 
   it("warning messages for savePending have role='alert'", () => {
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="Test Label"
         savePending={true}
@@ -88,7 +88,7 @@ describe("HookFieldWrapper accessibility", () => {
         isManualSave={false}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const alertElement = screen.getByRole("alert");
@@ -97,13 +97,13 @@ describe("HookFieldWrapper accessibility", () => {
 
   it("saving status messages have role='alert'", () => {
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="Test Label"
         saving={true}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const alertElement = screen.getByRole("alert");
@@ -113,13 +113,13 @@ describe("HookFieldWrapper accessibility", () => {
 
   it("sets aria-required on child when required is true", () => {
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="Test Label"
         required={true}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const input = screen.getByTestId("child-input");
@@ -128,13 +128,13 @@ describe("HookFieldWrapper accessibility", () => {
 
   it("sets aria-required to false on child when required is false", () => {
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="Test Label"
         required={false}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const input = screen.getByTestId("child-input");
@@ -143,13 +143,13 @@ describe("HookFieldWrapper accessibility", () => {
 
   it("sets aria-invalid on child when there is an error", () => {
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="Test Label"
         error={{ type: "required", message: "Required" }}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const input = screen.getByTestId("child-input");
@@ -158,12 +158,12 @@ describe("HookFieldWrapper accessibility", () => {
 
   it("sets aria-invalid to false on child when there is no error", () => {
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="Test Label"
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const input = screen.getByTestId("child-input");
@@ -172,12 +172,12 @@ describe("HookFieldWrapper accessibility", () => {
 
   it("sets aria-labelledby to the label id when no ariaLabel is provided", () => {
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="Test Label"
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const input = screen.getByTestId("child-input");
@@ -186,12 +186,12 @@ describe("HookFieldWrapper accessibility", () => {
 
   it("sets aria-describedby to the error message id", () => {
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="Test Label"
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const input = screen.getByTestId("child-input");
@@ -200,13 +200,13 @@ describe("HookFieldWrapper accessibility", () => {
 
   it("renders the required indicator in the label", () => {
     render(
-      <HookFieldWrapper
+      <FieldWrapper
         id="testField"
         label="Test Label"
         required={true}
       >
         <input data-testid="child-input" />
-      </HookFieldWrapper>
+      </FieldWrapper>
     );
 
     const indicator = document.querySelector(".required-indicator");
@@ -215,9 +215,9 @@ describe("HookFieldWrapper accessibility", () => {
   });
 });
 
-// ─── HookWizardForm accessibility tests ─────────────────────────────────────
+// ─── WizardForm accessibility tests ─────────────────────────────────────
 
-describe("HookWizardForm accessibility", () => {
+describe("WizardForm accessibility", () => {
   const wizardConfig: IWizardConfig = {
     steps: [
       { id: "step1", title: "Basic Info", fields: ["name", "email"] },
@@ -233,7 +233,7 @@ describe("HookWizardForm accessibility", () => {
 
   it("renders an ARIA live region for step announcements", () => {
     render(
-      <HookWizardForm
+      <WizardForm
         wizardConfig={wizardConfig}
         entityData={entityData}
         renderStepContent={renderStepContent}
@@ -248,7 +248,7 @@ describe("HookWizardForm accessibility", () => {
 
   it("announces the current step on initial render", () => {
     render(
-      <HookWizardForm
+      <WizardForm
         wizardConfig={wizardConfig}
         entityData={entityData}
         renderStepContent={renderStepContent}
@@ -276,7 +276,7 @@ describe("HookWizardForm accessibility", () => {
     );
 
     render(
-      <HookWizardForm
+      <WizardForm
         wizardConfig={wizardConfig}
         entityData={entityData}
         renderStepContent={renderStepContent}
@@ -299,7 +299,7 @@ describe("HookWizardForm accessibility", () => {
 
   it("marks the step content with aria-current='step'", () => {
     render(
-      <HookWizardForm
+      <WizardForm
         wizardConfig={wizardConfig}
         entityData={entityData}
         renderStepContent={renderStepContent}
@@ -315,7 +315,7 @@ describe("HookWizardForm accessibility", () => {
 
 describe("HookConfirmInputsModal accessibility", () => {
   // The modal is difficult to test in isolation because it depends on
-  // react-hook-form context and BusinessRulesProvider. We test the key attributes
+  // react-hook-form context and RulesEngineProvider. We test the key attributes
   // by verifying the rendered dialog element attributes.
 
   it("native dialog has aria-label when rendered", () => {
@@ -326,7 +326,7 @@ describe("HookConfirmInputsModal accessibility", () => {
     // testing the component template expectations.
 
     // The dialog element should have:
-    // - aria-label={HookInlineFormStrings.confirm} which is "Confirm"
+    // - aria-label={FormStrings.confirm} which is "Confirm"
     // - onKeyDown handler for focus trap
     // - a ref for the save button
     // This is verified through code review; actual DOM tests require the full
@@ -338,9 +338,9 @@ describe("HookConfirmInputsModal accessibility", () => {
 // ─── Filter input accessibility tests ───────────────────────────────────────
 
 describe("Filter input accessibility", () => {
-  // The filter input is part of HookInlineForm which requires full provider context.
+  // The filter input is part of DynamicForm which requires full provider context.
   // We verify the expected attributes that we know should be present based on the
-  // implementation: aria-label={HookInlineFormStrings.filterFields}
+  // implementation: aria-label={FormStrings.filterFields}
 
   it("verifies locale string for filter fields label exists", () => {
     const filterFieldsLabel = getLocaleString("filterFields");

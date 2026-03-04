@@ -1,4 +1,4 @@
-import { IHookFieldSharedProps } from "@bghcore/dynamic-forms-core";
+import { IFieldProps } from "@bghcore/dynamic-forms-core";
 import { Button } from "@mui/material";
 import React from "react";
 import { ReadOnlyText, IReadOnlyFieldProps } from "../../components/ReadOnlyText";
@@ -9,14 +9,14 @@ interface HookReadOnlyWithButtonProps extends IReadOnlyFieldProps {
   onButtonClick?: () => void;
 }
 
-const HookReadOnlyWithButton = (props: IHookFieldSharedProps<HookReadOnlyWithButtonProps>) => {
-  const { fieldName, value, meta } = props;
+const HookReadOnlyWithButton = (props: IFieldProps<HookReadOnlyWithButtonProps>) => {
+  const { fieldName, value, config } = props;
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: "8px" }} className={meta?.containerClassName}>
+    <div style={{ display: "flex", alignItems: "center", gap: "8px" }} className={config?.containerClassName}>
       <ReadOnlyText fieldName={fieldName} value={`${value}`} />
-      {meta?.buttonText && (
-        <Button variant="outlined" size="small" onClick={meta.onButtonClick}>
-          {meta.buttonText}
+      {config?.buttonText && (
+        <Button variant="outlined" size="small" onClick={config.onButtonClick}>
+          {config.buttonText}
         </Button>
       )}
     </div>

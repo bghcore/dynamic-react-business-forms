@@ -1,13 +1,10 @@
 import { getLocaleString } from "./helpers/LocaleRegistry";
 
 /**
- * User-facing string literals.
- * All properties resolve through the locale registry, so they automatically
- * reflect any registered locale overrides.
- *
- * Backwards compatible: `HookInlineFormStrings.required` still works.
+ * User-facing string literals (v2).
+ * All properties resolve through the locale registry.
  */
-export const HookInlineFormStrings = {
+export const FormStrings = {
   get autoSavePending() { return getLocaleString("autoSavePending"); },
   get savePending() { return getLocaleString("savePending"); },
   get remaining() { return getLocaleString("remaining"); },
@@ -54,3 +51,4 @@ export const HookInlineFormStrings = {
   get saveRetrying() { return getLocaleString("saveRetrying"); },
   get saveTimeout() { return getLocaleString("saveTimeout"); },
 };
+

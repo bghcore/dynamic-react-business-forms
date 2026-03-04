@@ -1,4 +1,4 @@
-import { IHookFieldSharedProps, buildDropdownOption } from "@bghcore/dynamic-forms-core";
+import { IFieldProps } from "@bghcore/dynamic-forms-core";
 import { Dropdown, Option } from "@fluentui/react-components";
 import type { OptionOnSelectData } from "@fluentui/react-components";
 import React from "react";
@@ -10,10 +10,10 @@ interface IHookSimpleDropdownProps {
   placeHolder?: string;
 }
 
-const HookSimpleDropdown = (props: IHookFieldSharedProps<IHookSimpleDropdownProps>) => {
-  const { fieldName, programName, entityType, entityId, value, readOnly, meta, error, setFieldValue } = props;
+const HookSimpleDropdown = (props: IFieldProps<IHookSimpleDropdownProps>) => {
+  const { fieldName, programName, entityType, entityId, value, readOnly, config, error, setFieldValue } = props;
 
-  const options = meta?.dropdownOptions ?? [];
+  const simpleOptions = config?.dropdownOptions ?? [];
 
   const onOptionSelect = (_: unknown, data: OptionOnSelectData) => {
     setFieldValue(fieldName, data.optionValue);
@@ -29,7 +29,7 @@ const HookSimpleDropdown = (props: IHookFieldSharedProps<IHookSimpleDropdownProp
       onOptionSelect={onOptionSelect}
       data-testid={GetFieldDataTestId(fieldName, programName, entityType, entityId)}
     >
-      {options.map(option => (
+      {simpleOptions.map(option => (
         <Option key={option} value={option}>{option}</Option>
       ))}
     </Dropdown>

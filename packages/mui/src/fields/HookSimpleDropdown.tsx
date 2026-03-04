@@ -1,4 +1,4 @@
-import { IHookFieldSharedProps } from "@bghcore/dynamic-forms-core";
+import { IFieldProps } from "@bghcore/dynamic-forms-core";
 import { FormControl, Select, MenuItem } from "@mui/material";
 import type { SelectChangeEvent } from "@mui/material";
 import React from "react";
@@ -10,10 +10,10 @@ interface IHookSimpleDropdownProps {
   placeHolder?: string;
 }
 
-const HookSimpleDropdown = (props: IHookFieldSharedProps<IHookSimpleDropdownProps>) => {
-  const { fieldName, programName, entityType, entityId, value, readOnly, meta, error, setFieldValue } = props;
+const HookSimpleDropdown = (props: IFieldProps<IHookSimpleDropdownProps>) => {
+  const { fieldName, programName, entityType, entityId, value, readOnly, config, error, setFieldValue } = props;
 
-  const options = meta?.dropdownOptions ?? [];
+  const simpleOptions = config?.dropdownOptions ?? [];
 
   const onChange = (event: SelectChangeEvent<string>) => {
     setFieldValue(fieldName, event.target.value);
@@ -30,7 +30,7 @@ const HookSimpleDropdown = (props: IHookFieldSharedProps<IHookSimpleDropdownProp
         displayEmpty
         data-testid={GetFieldDataTestId(fieldName, programName, entityType, entityId)}
       >
-        {options.map(option => (
+        {simpleOptions.map(option => (
           <MenuItem key={option} value={option}>{option}</MenuItem>
         ))}
       </Select>

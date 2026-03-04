@@ -1,12 +1,12 @@
-import { IHookFieldSharedProps } from "@bghcore/dynamic-forms-core";
+import { IFieldProps } from "@bghcore/dynamic-forms-core";
 import { Combobox, Option } from "@fluentui/react-components";
 import type { ComboboxProps } from "@fluentui/react-components";
 import React from "react";
 import { Dropdown } from "@fluentui/react-components";
 import { FieldClassName, GetFieldDataTestId } from "../helpers";
 
-const HookMultiSelectSearch = (props: IHookFieldSharedProps<{}>) => {
-  const { fieldName, programName, entityType, entityId, value, readOnly, error, dropdownOptions, setFieldValue } = props;
+const HookMultiSelectSearch = (props: IFieldProps<{}>) => {
+  const { fieldName, programName, entityType, entityId, value, readOnly, error, options, setFieldValue } = props;
 
   const onOptionSelect: ComboboxProps["onOptionSelect"] = (_, data) => {
     setFieldValue(fieldName, data.selectedOptions, false, 3000);
@@ -37,9 +37,9 @@ const HookMultiSelectSearch = (props: IHookFieldSharedProps<{}>) => {
       onOptionSelect={onOptionSelect}
       data-testid={GetFieldDataTestId(fieldName, programName, entityType, entityId)}
     >
-      {dropdownOptions?.map(option => (
-        <Option key={String(option.key)} value={String(option.key)}>
-          {option.text}
+      {options?.map(option => (
+        <Option key={String(option.value)} value={String(option.value)}>
+          {option.label}
         </Option>
       ))}
     </Combobox>

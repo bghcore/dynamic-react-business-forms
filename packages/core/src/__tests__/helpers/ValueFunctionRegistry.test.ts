@@ -3,10 +3,15 @@ import {
   getValueFunction,
   registerValueFunctions,
   executeValueFunction,
+  resetValueFunctionRegistry,
   ValueFunction,
 } from "../../helpers/ValueFunctionRegistry";
 
 describe("ValueFunctionRegistry", () => {
+  beforeEach(() => {
+    resetValueFunctionRegistry();
+  });
+
   describe("default value functions are registered", () => {
     it.each([
       "setDate",
@@ -30,7 +35,7 @@ describe("ValueFunctionRegistry", () => {
     it("returns a Date object", () => {
       const fn = getValueFunction("setDate")!;
       const before = new Date();
-      const result = fn({ fieldName: "createdDate" });
+      const result = fn({ fieldName: "createdDate", values: {} });
       const after = new Date();
 
       expect(result).toBeInstanceOf(Date);
@@ -43,20 +48,20 @@ describe("ValueFunctionRegistry", () => {
     it("returns the existing value when fieldValue is present (truthy)", () => {
       const fn = getValueFunction("setDateIfNull")!;
       const existing = new Date(2020, 0, 1);
-      const result = fn({ fieldName: "modifiedDate", fieldValue: existing });
+      const result = fn({ fieldName: "modifiedDate", fieldValue: existing, values: {} });
       expect(result).toBe(existing);
     });
 
     it("returns the existing string value when fieldValue is a non-empty string", () => {
       const fn = getValueFunction("setDateIfNull")!;
-      const result = fn({ fieldName: "modifiedDate", fieldValue: "2020-01-01" });
+      const result = fn({ fieldName: "modifiedDate", fieldValue: "2020-01-01", values: {} });
       expect(result).toBe("2020-01-01");
     });
 
     it("returns a new Date when fieldValue is null", () => {
       const fn = getValueFunction("setDateIfNull")!;
       const before = new Date();
-      const result = fn({ fieldName: "modifiedDate", fieldValue: null });
+      const result = fn({ fieldName: "modifiedDate", fieldValue: null, values: {} });
       const after = new Date();
 
       expect(result).toBeInstanceOf(Date);
@@ -66,7 +71,7 @@ describe("ValueFunctionRegistry", () => {
 
     it("returns a new Date when fieldValue is undefined", () => {
       const fn = getValueFunction("setDateIfNull")!;
-      const result = fn({ fieldName: "modifiedDate", fieldValue: undefined });
+      const result = fn({ fieldName: "modifiedDate", fieldValue: undefined, values: {} });
       expect(result).toBeInstanceOf(Date);
     });
   });
@@ -74,20 +79,19 @@ describe("ValueFunctionRegistry", () => {
   describe("setLoggedInUser", () => {
     it("returns {id: userId} when currentUserId is provided", () => {
       const fn = getValueFunction("setLoggedInUser")!;
-      const result = fn({ fieldName: "owner", currentUserId: "user-123" });
+      const result = fn({ fieldName: "owner", currentUserId: "user-123", values: {} });
       expect(result).toEqual({ id: "user-123" });
     });
 
     it("returns undefined when currentUserId is not provided", () => {
       const fn = getValueFunction("setLoggedInUser")!;
-      const result = fn({ fieldName: "owner" });
+      const result = fn({ fieldName: "owner", values: {} });
       expect(result).toBeUndefined();
     });
 
     it("returns undefined when currentUserId is empty string", () => {
       const fn = getValueFunction("setLoggedInUser")!;
-      const result = fn({ fieldName: "owner", currentUserId: "" });
-      // Empty string is falsy, so should return undefined
+      const result = fn({ fieldName: "owner", currentUserId: "", values: {} });
       expect(result).toBeUndefined();
     });
   });
@@ -95,21 +99,21 @@ describe("ValueFunctionRegistry", () => {
   describe("inheritFromParent", () => {
     it("returns the parent entity value for the given field name", () => {
       const fn = getValueFunction("inheritFromParent")!;
-      const parentEntity = { region: "East", country: "US" };
-      const result = fn({ fieldName: "region", parentEntity });
+      const values = { Parent: { region: "East", country: "US" } };
+      const result = fn({ fieldName: "region", values });
       expect(result).toBe("East");
     });
 
-    it("returns undefined when parentEntity is not provided", () => {
+    it("returns undefined when Parent is not in values", () => {
       const fn = getValueFunction("inheritFromParent")!;
-      const result = fn({ fieldName: "region" });
+      const result = fn({ fieldName: "region", values: {} });
       expect(result).toBeUndefined();
     });
 
     it("returns undefined when the field does not exist on the parent", () => {
       const fn = getValueFunction("inheritFromParent")!;
-      const parentEntity = { country: "US" };
-      const result = fn({ fieldName: "nonExistent", parentEntity });
+      const values = { Parent: { country: "US" } };
+      const result = fn({ fieldName: "nonExistent", values });
       expect(result).toBeUndefined();
     });
   });
@@ -123,8 +127,8 @@ describe("ValueFunctionRegistry", () => {
 
       const retrieved = getValueFunction("customProcessor");
       expect(retrieved).toBe(customFn);
-      expect(retrieved!({ fieldName: "test", fieldValue: "input" })).toBe("processed-input");
-      expect(retrieved!({ fieldName: "test" })).toBe("default");
+      expect(retrieved!({ fieldName: "test", fieldValue: "input", values: {} })).toBe("processed-input");
+      expect(retrieved!({ fieldName: "test", values: {} })).toBe("default");
     });
 
     it("can override a default value function", () => {
@@ -134,20 +138,20 @@ describe("ValueFunctionRegistry", () => {
 
       const retrieved = getValueFunction("setDate");
       expect(retrieved).toBe(overrideFn);
-      expect(retrieved!({ fieldName: "test" })).toBe("overridden");
+      expect(retrieved!({ fieldName: "test", values: {} })).toBe("overridden");
     });
 
     it("preserves previously registered functions when adding new ones", () => {
-      registerValueFunctions({ anotherCustom: () => "another" });
-      // customProcessor registered in previous test should still exist
-      expect(getValueFunction("customProcessor")).toBeDefined();
-      expect(getValueFunction("anotherCustom")).toBeDefined();
+      registerValueFunctions({ customA: () => "a" });
+      registerValueFunctions({ customB: () => "b" });
+      expect(getValueFunction("customA")).toBeDefined();
+      expect(getValueFunction("customB")).toBeDefined();
     });
   });
 
   describe("executeValueFunction", () => {
     it("calls the right function with the correct arguments", () => {
-      const spyFn = vi.fn(({ fieldName, fieldValue, parentEntity, currentUserId }) => {
+      const spyFn = vi.fn(({ fieldName, fieldValue, currentUserId }) => {
         return `${fieldName}-${fieldValue}-${currentUserId}`;
       });
 
@@ -156,6 +160,7 @@ describe("ValueFunctionRegistry", () => {
       const result = executeValueFunction(
         "myField",
         "spyFunction",
+        { parentKey: "parentVal" },
         "myValue",
         { parentKey: "parentVal" },
         "user-42"
@@ -165,6 +170,7 @@ describe("ValueFunctionRegistry", () => {
       expect(spyFn).toHaveBeenCalledWith({
         fieldName: "myField",
         fieldValue: "myValue",
+        values: { parentKey: "parentVal" },
         parentEntity: { parentKey: "parentVal" },
         currentUserId: "user-42",
       });
@@ -172,7 +178,7 @@ describe("ValueFunctionRegistry", () => {
     });
 
     it("returns undefined for an unknown value function name", () => {
-      const result = executeValueFunction("field", "unknownFunction");
+      const result = executeValueFunction("field", "unknownFunction", {});
       expect(result).toBeUndefined();
     });
 
@@ -180,11 +186,12 @@ describe("ValueFunctionRegistry", () => {
       const spyFn = vi.fn(() => "result");
       registerValueFunctions({ optionalParamsFn: spyFn });
 
-      executeValueFunction("field", "optionalParamsFn");
+      executeValueFunction("field", "optionalParamsFn", {});
 
       expect(spyFn).toHaveBeenCalledWith({
         fieldName: "field",
         fieldValue: undefined,
+        values: {},
         parentEntity: undefined,
         currentUserId: undefined,
       });

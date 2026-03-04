@@ -1,5 +1,5 @@
-import { Dictionary } from "../utils";
 import { IFieldConfig } from "../types/IFieldConfig";
+import { IOption } from "../types/IOption";
 
 export interface IJsonSchema {
   type?: string | string[];
@@ -22,24 +22,25 @@ export interface IJsonSchemaProperty {
   items?: IJsonSchemaProperty;
 }
 
-export function jsonSchemaToFieldConfig(schema: IJsonSchema): Dictionary<IFieldConfig> {
-  const configs: Dictionary<IFieldConfig> = {};
+export function jsonSchemaToFieldConfig(schema: IJsonSchema): Record<string, IFieldConfig> {
+  const configs: Record<string, IFieldConfig> = {};
   const requiredFields = new Set(schema.required ?? []);
 
   for (const [fieldName, property] of Object.entries(schema.properties ?? {})) {
-    const component = mapTypeToComponent(property);
-    const validations = mapFormatToValidations(property);
-    const dropdownOptions = property.enum
-      ? property.enum.map(v => ({ key: String(v), text: String(v) }))
+    const type = mapTypeToComponent(property);
+    const validate = mapFormatToValidations(property);
+    const options: IOption[] | undefined = property.enum
+      ? property.enum.map(v => ({ value: String(v), label: String(v) }))
       : undefined;
 
     configs[fieldName] = {
-      component,
+      type,
       label: property.title ?? fieldName,
       required: requiredFields.has(fieldName),
-      validations: validations.length > 0 ? validations : undefined,
-      dropdownOptions,
-      defaultValue: property.default as string | number | boolean | undefined,
+      validate: validate.length > 0 ? validate : undefined,
+      options,
+      defaultValue: property.default,
+      description: property.description,
     };
   }
 
@@ -70,10 +71,10 @@ function mapTypeToComponent(property: IJsonSchemaProperty): string {
   }
 }
 
-function mapFormatToValidations(property: IJsonSchemaProperty): string[] {
-  const validations: string[] = [];
-  if (property.format === "email") validations.push("EmailValidation");
-  if (property.format === "uri" || property.format === "url") validations.push("isValidUrl");
-  if (property.format === "phone") validations.push("PhoneNumberValidation");
+function mapFormatToValidations(property: IJsonSchemaProperty): Array<{ name: string }> {
+  const validations: Array<{ name: string }> = [];
+  if (property.format === "email") validations.push({ name: "email" });
+  if (property.format === "uri" || property.format === "url") validations.push({ name: "url" });
+  if (property.format === "phone") validations.push({ name: "phone" });
   return validations;
 }

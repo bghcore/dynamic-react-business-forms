@@ -5,7 +5,7 @@ import {
   resetLocale,
   getCurrentLocale,
 } from "../../helpers/LocaleRegistry";
-import { HookInlineFormStrings } from "../../strings";
+import { FormStrings } from "../../strings";
 
 describe("LocaleRegistry", () => {
   beforeEach(() => {
@@ -108,33 +108,33 @@ describe("LocaleRegistry", () => {
     });
   });
 
-  describe("HookInlineFormStrings integration", () => {
+  describe("FormStrings integration", () => {
     it("resolves through locale registry by default (English)", () => {
-      expect(HookInlineFormStrings.required).toBe("Required");
-      expect(HookInlineFormStrings.save).toBe("Save");
-      expect(HookInlineFormStrings.cancel).toBe("Cancel");
-      expect(HookInlineFormStrings.saving).toBe("Saving...");
+      expect(FormStrings.required).toBe("Required");
+      expect(FormStrings.save).toBe("Save");
+      expect(FormStrings.cancel).toBe("Cancel");
+      expect(FormStrings.saving).toBe("Saving...");
     });
 
     it("reflects locale changes dynamically", () => {
       registerLocale({ required: "Pflichtfeld", save: "Speichern" });
 
-      expect(HookInlineFormStrings.required).toBe("Pflichtfeld");
-      expect(HookInlineFormStrings.save).toBe("Speichern");
+      expect(FormStrings.required).toBe("Pflichtfeld");
+      expect(FormStrings.save).toBe("Speichern");
       // Non-overridden
-      expect(HookInlineFormStrings.cancel).toBe("Cancel");
+      expect(FormStrings.cancel).toBe("Cancel");
     });
 
     it("reflects reset back to English", () => {
       registerLocale({ required: "Obligatoire" });
-      expect(HookInlineFormStrings.required).toBe("Obligatoire");
+      expect(FormStrings.required).toBe("Obligatoire");
 
       resetLocale();
-      expect(HookInlineFormStrings.required).toBe("Required");
+      expect(FormStrings.required).toBe("Required");
     });
 
     it("saveChangesTo getter returns the locale function", () => {
-      const fn = HookInlineFormStrings.saveChangesTo;
+      const fn = FormStrings.saveChangesTo;
       expect(typeof fn).toBe("function");
       expect(fn("Test")).toBe("Do you want to save your changes to Test?");
     });

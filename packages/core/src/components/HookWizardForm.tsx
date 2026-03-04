@@ -1,9 +1,9 @@
 import React from "react";
 import { IWizardConfig, IWizardStep } from "../types/IWizardConfig";
-import { IEntityData, Dictionary } from "../utils";
-import { IBusinessRule } from "../types/IBusinessRule";
+import { IEntityData } from "../utils";
+import { IRuntimeFieldState } from "../types/IRuntimeFieldState";
 import { getVisibleSteps, getStepFields, isStepValid } from "../helpers/WizardHelper";
-import { HookInlineFormStrings } from "../strings";
+import { FormStrings } from "../strings";
 
 export interface IWizardNavigationProps {
   steps: IWizardStep[];
@@ -21,10 +21,10 @@ export interface IWizardStepHeaderProps {
   totalSteps: number;
 }
 
-export interface IHookWizardFormProps {
+export interface IWizardFormProps {
   wizardConfig: IWizardConfig;
   entityData: IEntityData;
-  fieldRules?: Dictionary<IBusinessRule>;
+  fieldStates?: Record<string, IRuntimeFieldState>;
   errors?: Record<string, unknown>;
   renderStepContent: (fields: string[]) => React.ReactNode;
   renderStepNavigation?: (props: IWizardNavigationProps) => React.ReactNode;
@@ -32,16 +32,10 @@ export interface IHookWizardFormProps {
   onStepChange?: (fromIndex: number, toIndex: number) => void;
 }
 
-export const HookWizardForm: React.FC<IHookWizardFormProps> = (props) => {
+export const WizardForm: React.FC<IWizardFormProps> = (props) => {
   const {
-    wizardConfig,
-    entityData,
-    fieldRules,
-    errors,
-    renderStepContent,
-    renderStepNavigation,
-    renderStepHeader,
-    onStepChange,
+    wizardConfig, entityData, fieldStates, errors,
+    renderStepContent, renderStepNavigation, renderStepHeader, onStepChange,
   } = props;
 
   const [currentStepIndex, setCurrentStepIndex] = React.useState(0);
@@ -52,8 +46,7 @@ export const HookWizardForm: React.FC<IHookWizardFormProps> = (props) => {
   );
 
   const currentStep = visibleSteps[currentStepIndex];
-  const currentFields = currentStep ? getStepFields(currentStep, fieldRules) : [];
-
+  const currentFields = currentStep ? getStepFields(currentStep, fieldStates) : [];
   const canGoNext = currentStepIndex < visibleSteps.length - 1;
   const canGoPrev = currentStepIndex > 0;
 
@@ -68,60 +61,26 @@ export const HookWizardForm: React.FC<IHookWizardFormProps> = (props) => {
     }
   }, [visibleSteps.length, currentStepIndex, wizardConfig.validateOnStepChange, errors, currentStep, onStepChange]);
 
-  const goNext = React.useCallback(() => {
-    if (canGoNext) goToStep(currentStepIndex + 1);
-  }, [canGoNext, currentStepIndex, goToStep]);
+  const goNext = React.useCallback(() => { if (canGoNext) goToStep(currentStepIndex + 1); }, [canGoNext, currentStepIndex, goToStep]);
+  const goPrev = React.useCallback(() => { if (canGoPrev) goToStep(currentStepIndex - 1); }, [canGoPrev, currentStepIndex, goToStep]);
 
-  const goPrev = React.useCallback(() => {
-    if (canGoPrev) goToStep(currentStepIndex - 1);
-  }, [canGoPrev, currentStepIndex, goToStep]);
-
-  // Build the step announcement text for screen readers
   const stepAnnouncement = currentStep
-    ? `${HookInlineFormStrings.stepOf(currentStepIndex + 1, visibleSteps.length)}${currentStep.title ? `: ${currentStep.title}` : ""}`
+    ? `${FormStrings.stepOf(currentStepIndex + 1, visibleSteps.length)}${currentStep.title ? `: ${currentStep.title}` : ""}`
     : "";
 
   if (!currentStep) return null;
 
   return (
     <div className="wizard-form">
-      {/* Visually-hidden ARIA live region for step change announcements */}
-      <div
-        role="status"
-        aria-live="polite"
-        className="sr-only"
-        style={{
-          position: "absolute",
-          width: "1px",
-          height: "1px",
-          padding: 0,
-          margin: "-1px",
-          overflow: "hidden",
-          clip: "rect(0, 0, 0, 0)",
-          whiteSpace: "nowrap",
-          border: 0,
-        }}
-        data-testid="wizard-step-live-region"
-      >
+      <div role="status" aria-live="polite" className="sr-only" style={{ position: "absolute", width: "1px", height: "1px", padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0 }} data-testid="wizard-step-live-region">
         {stepAnnouncement}
       </div>
-      {renderStepHeader?.({
-        step: currentStep,
-        stepIndex: currentStepIndex,
-        totalSteps: visibleSteps.length,
-      })}
+      {renderStepHeader?.({ step: currentStep, stepIndex: currentStepIndex, totalSteps: visibleSteps.length })}
       <div className="wizard-step-content" aria-current="step">
         {renderStepContent(currentFields)}
       </div>
-      {renderStepNavigation?.({
-        steps: visibleSteps,
-        currentStepIndex,
-        goToStep,
-        canGoNext,
-        canGoPrev,
-        goNext,
-        goPrev,
-      })}
+      {renderStepNavigation?.({ steps: visibleSteps, currentStepIndex, goToStep, canGoNext, canGoPrev, goNext, goPrev })}
     </div>
   );
 };
+
