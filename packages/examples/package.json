@@ -1,6 +1,6 @@
 {
   "name": "@bghcore/dynamic-forms-examples",
-  "version": "2.0.1",
+  "version": "3.0.0",
   "private": true,
   "description": "Example apps demonstrating @bghcore/dynamic-forms-core",
   "scripts": {
