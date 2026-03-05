@@ -1,6 +1,6 @@
 {
   "name": "@bghcore/dynamic-forms-designer",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "Visual form builder for @bghcore/dynamic-forms-core",
   "repository": {
     "type": "git",

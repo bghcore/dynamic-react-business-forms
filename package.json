@@ -5,7 +5,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
+    "build": "npm run build:core && npm run build --workspace=packages/fluent --workspace=packages/mui --workspace=packages/headless --workspace=packages/designer && npm run build --workspace=packages/examples",
     "build:core": "npm run build --workspace=packages/core",
     "build:fluent": "npm run build --workspace=packages/fluent",
     "build:mui": "npm run build --workspace=packages/mui",
@@ -45,5 +45,5 @@
     "vite": "^7.3.1",
     "vitest": "^4.0.18"
   },
-  "version": "3.0.2"
+  "version": "3.0.3"
 }
