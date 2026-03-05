@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.3] - 2026-03-05
+
+### Fixed
+
+- **CI build order** -- Build script now runs core first, then adapters in parallel, then examples last. Fixes workspace build order issue where examples failed because MUI dist/ didn't exist yet.
+- **Examples build** -- Removed `tsc` step from examples build script. Vite handles TypeScript via esbuild; `tsc` was failing because MUI types weren't available at build time.
+- **CI Node versions** -- Updated matrix from Node 18.x/20.x to 20.x/22.x (18.x is EOL).
+
+## [3.0.1] - 2026-03-05
+
+### Changed
+
+- **Removed `Hook` prefix from all adapter field file names** -- 60 files renamed across fluent, mui, and headless packages (e.g., `HookTextbox.tsx` -> `Textbox.tsx`, `HookReadOnly.tsx` -> `ReadOnly.tsx`, `HookFormLoading.tsx` -> `FormLoading.tsx`). Internal export names preserved for backwards compatibility.
+
 ## [3.0.0] - 2026-03-05
 
 Major release: new packages, tooling, and ecosystem expansion.
