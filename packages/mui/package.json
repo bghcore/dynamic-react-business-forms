@@ -1,6 +1,6 @@
 {
   "name": "@bghcore/dynamic-forms-mui",
-  "version": "3.0.4",
+  "version": "3.0.5",
   "description": "Material UI (MUI) field components for @bghcore/dynamic-forms-core",
   "repository": {
     "type": "git",
